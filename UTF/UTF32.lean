@@ -21,7 +21,8 @@ namespace String
 public def toUTF32 (s : String) : UInt32Array := (s.chars.map Char.val).toUInt32Array
 
 /-- Decodes UTF-32, running `bad` for each ill-formed code unit. -/
-@[specialize] private def decodeUTF32 [Monad m] (s : UInt32Array.Slice) (bad : m Char) : m String := do
+@[specialize] private def decodeUTF32 [Monad m] (s : UInt32Array.Slice) (bad : m Char) :
+    m String := do
   let mut r := ""
   for u in s do
     r := r.push (← if h : u.isValidChar then pure ⟨u, h⟩ else bad)

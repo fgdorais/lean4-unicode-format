@@ -19,6 +19,12 @@ open ScalarArray
 
 namespace String
 
+/-- Whether `u` is a high surrogate, the first code unit of a pair. -/
+@[inline] private def isHigh (u : UInt16) : Bool := u &&& 0xFC00 == 0xD800
+
+/-- Whether `u` is a low surrogate, the second code unit of a pair. -/
+@[inline] private def isLow (u : UInt16) : Bool := u &&& 0xFC00 == 0xDC00
+
 /-- Appends the UTF-16 encoding of `c`. -/
 @[inline] private def pushUTF16 (a : UInt16Array) (c : Char) : UInt16Array :=
   if c.val < 0x10000 then
@@ -33,23 +39,22 @@ public def toUTF16 (s : String) : UInt16Array :=
   s.chars.fold pushUTF16 (.emptyWithCapacity s.utf8ByteSize)
 
 /-- Decodes UTF-16, running `bad` for each ill-formed code unit. -/
-@[specialize] private def decodeUTF16 [Monad m] (s : UInt16Array.Slice) (bad : m Char) : m String := do
+@[specialize] private def decodeUTF16 [Monad m] (s : UInt16Array.Slice) (bad : m Char) :
+    m String := do
   let mut r := ""
   -- The high surrogate waiting for its low surrogate.
   let mut hi : Option UInt16 := none
   for u in s do
     if let some h := hi then
       hi := none
-      if u &&& 0xFC00 == 0xDC00 then
+      if isLow u then
         r := r.push (Char.ofNat (0x10000 + (h.toNat &&& 0x3FF) * 0x400 + (u.toNat &&& 0x3FF)))
         continue
       r := r.push (← bad)
-    if u &&& 0xFC00 == 0xD800 then
+    if isHigh u then
       hi := some u
-    else if u &&& 0xFC00 == 0xDC00 then
-      r := r.push (← bad)
     else
-      r := r.push (Char.ofNat u.toNat)
+      r := r.push (← if isLow u then bad else pure (Char.ofNat u.toNat))
   if hi.isSome then
     r := r.push (← bad)
   return r
@@ -72,9 +77,9 @@ public def validateUTF16 (s : UInt16Array.Slice) : Bool := Id.run do
   -- Whether the previous code unit is a high surrogate.
   let mut hi := false
   for u in s do
-    if hi != (u &&& 0xFC00 == 0xDC00) then
+    if hi != isLow u then
       return false
-    hi := u &&& 0xFC00 == 0xD800
+    hi := isHigh u
   return !hi
 
 end String

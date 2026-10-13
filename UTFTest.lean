@@ -17,8 +17,8 @@ def sampleChars (step : Nat) : String := Id.run do
 
 /-- Strings covering ASCII, the BMP on both sides of the surrogates, and the astral planes. -/
 def samples : List String :=
-  ["", "a", "Hello, world!", "café", "∀ε>0", "日本語", "\uD7FF\uE000\uFFFF",
-    "😀", "a😀b", "𐀀" ++ (Char.ofNat 0x10FFFF).toString, "𝔸𝔹ℂ", sampleChars 97, sampleChars 1]
+  ["", "a", "Hello, world!", "café", "∀ε>0", "日本語", "\uD7FF\uE000\uFFFF", "😀", "a😀b",
+    "𐀀" ++ (Char.ofNat 0x10FFFF).toString, "𝔸𝔹ℂ", sampleChars 97, sampleChars 1]
 
 /-! UTF-16 encoding -/
 
@@ -75,7 +75,7 @@ def badUTF16 : List (List UInt16 × String) :=
 #guard samples.all fun s => s.toUTF32.size == s.length
 #guard String.fromUTF32? ("a😀b".toUTF32[1...*]) == some "😀b"
 
-/-- Code unit sequences with values that are not Unicode scalar values, and their lossy decodings. -/
+/-- Code unit sequences with values that are not scalar values, and their lossy decodings. -/
 def badUTF32 : List (List UInt32 × String) :=
   [([0xD800], "\uFFFD"),
    ([0xDFFF], "\uFFFD"),
