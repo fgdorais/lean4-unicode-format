@@ -9,6 +9,9 @@ concurrency:
   group: update-nightly-testing
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   update-nightly-testing:
     runs-on: ubuntu-latest

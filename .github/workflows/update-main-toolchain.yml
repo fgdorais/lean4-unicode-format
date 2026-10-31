@@ -9,6 +9,9 @@ concurrency:
   group: update-main-toolchain
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   update-main-toolchain:
     runs-on: ubuntu-latest
