@@ -10,12 +10,12 @@ public import ScalarArray.UInt32
 # UTF-32
 
 Each code point is a single code unit. A code unit that is a surrogate in D800–DFFF or above
-10FFFF is ill-formed. The names follow core's `String.toUTF8` and `String.fromUTF8?`.
+10FFFF is ill-formed.
 -/
 
 open ScalarArray
 
-namespace String
+namespace Unicode
 
 /-- The UTF-32 encoding of `s`. -/
 public def toUTF32 (s : String) : UInt32Array := (s.chars.map Char.val).toUInt32Array
@@ -44,4 +44,4 @@ public def fromUTF32Lossy (s : UInt32Array.Slice) : String :=
 /-- Whether `s` is well-formed UTF-32, that is, every code unit is a Unicode scalar value. -/
 public def validateUTF32 (s : UInt32Array.Slice) : Bool := s.all (·.isValidChar)
 
-end String
+end Unicode

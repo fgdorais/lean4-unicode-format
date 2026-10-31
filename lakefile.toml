@@ -1,13 +1,15 @@
-name = "lean4-utf"
+name = "UnicodeFormat"
 version = "0.1.0"
-defaultTargets = ["UTF", "UTFTest"]
-testDriver = "UTFTest"
+description = "Unicode encoding forms for Lean 4"
+keywords = ["unicode"]
+defaultTargets = ["UnicodeFormat", "UnicodeFormatTest"]
+testDriver = "UnicodeFormatTest"
 
 [[lean_lib]]
-name = "UTF"
+name = "UnicodeFormat"
 
 [[lean_lib]]
-name = "UTFTest"
+name = "UnicodeFormatTest"
 precompileModules = true
 
 [[require]]

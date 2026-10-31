@@ -12,12 +12,12 @@ public import ScalarArray.UInt16
 A code point below U+10000 is a single code unit. A code point from U+10000 to U+10FFFF is a
 surrogate pair: a high surrogate in D800–DBFF carrying the top ten bits of `c - 0x10000`, then a
 low surrogate in DC00–DFFF carrying the bottom ten bits. A surrogate that is not part of such a
-pair is ill-formed. The names follow core's `String.toUTF8` and `String.fromUTF8?`.
+pair is ill-formed.
 -/
 
 open ScalarArray
 
-namespace String
+namespace Unicode
 
 /-- Whether `u` is a high surrogate, the first code unit of a pair. -/
 @[inline] private def isHigh (u : UInt16) : Bool := u &&& 0xFC00 == 0xD800
@@ -82,4 +82,4 @@ public def validateUTF16 (s : UInt16Array.Slice) : Bool := Id.run do
     hi := isHigh u
   return !hi
 
-end String
+end Unicode

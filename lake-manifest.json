@@ -21,6 +21,6 @@
    "inputRev": "main",
    "inherited": true,
    "configFile": "lakefile.toml"}],
- "name": "«lean4-utf»",
+ "name": "UnicodeFormat",
  "lakeDir": ".lake",
  "fixedToolchain": false}
