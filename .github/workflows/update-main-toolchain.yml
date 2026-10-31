@@ -39,17 +39,6 @@ jobs:
             exit 0
           fi
 
-          BATTERIES_REV=$(git ls-remote --exit-code \
-            https://github.com/leanprover-community/batteries.git \
-            refs/heads/main | cut -f1)
-          BATTERIES_TOOLCHAIN=$(curl --fail --silent --show-error --location \
-            "https://raw.githubusercontent.com/leanprover-community/batteries/${BATTERIES_REV}/lean-toolchain" | tr -d '\n')
-
-          if [ "$BATTERIES_TOOLCHAIN" != "$REQUESTED_TOOLCHAIN" ]; then
-            echo "updated=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
           echo "requested_toolchain=$REQUESTED_TOOLCHAIN" >> "$GITHUB_OUTPUT"
           echo "toolchain_rev=${REQUESTED_TOOLCHAIN#leanprover/lean4:}" >> "$GITHUB_OUTPUT"
           echo "updated=true" >> "$GITHUB_OUTPUT"
