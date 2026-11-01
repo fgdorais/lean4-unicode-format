@@ -29,26 +29,33 @@ namespace UTF8
 variable {ι : Type} [Iterator ι Id UInt8] [Iterators.Productive ι Id]
 
 /--
-Reads the `n` continuation bytes of a sequence that started at `start`, from `cur` on. The first
-must be from `lo` to `hi`, the others from 0x80 to 0xBF. `acc` holds the bits read so far. On a
-byte out of range, or at the end of the input, the maximal subpart ends at `cur`.
+Calls `k` with the iterator after the first `n + 1` bytes of `it`, or `done` if there are fewer.
+Decoding uses it on ill-formed input to step from the start of the sequence again, rather than keep
+the iterator at the end of the maximal subpart alive: the compiler then updates the iterator in
+place on well-formed input.
 -/
 @[specialize]
-private def continuation {β : Type} (start cur : Iter (α := ι) UInt8) (hcur : Advanced cur start)
-    (acc : UInt32) (n : Nat) (lo hi : UInt8)
-    (yield : (rest : Iter (α := ι) UInt8) → Advanced rest start → Char → β)
-    (error : DecodeError.Kind → (rest : Iter (α := ι) UInt8) → Advanced rest start → β) : β :=
+private def skip {β : Type} (it : Iter (α := ι) UInt8) (n : Nat)
+    (k : (rest : Iter (α := ι) UInt8) → Advanced rest it → β) (done : Unit → β) : β :=
   match n with
-  | 0 => yield cur hcur (Char.ofNat acc.toNat)
-  | n + 1 =>
-    nextToken cur
-      (fun r h b =>
-        if lo ≤ b && b ≤ hi then
-          continuation start r (h.trans hcur) (acc <<< 6 ||| (b &&& 0x3F).toUInt32) n 0x80 0xBF
-            yield error
-        else
-          error .illFormedUTF8 cur hcur)
-      (fun _ => error .illFormedUTF8 cur hcur)
+  | 0 => nextToken it (fun r h _ => k r h) done
+  | n + 1 => nextToken it (fun r h _ => skip r n (fun r' h' => k r' (h'.trans h)) done) done
+
+/--
+Reads one continuation byte at `cur`, which must be from `lo` to `hi`. Calls `k` with the iterator
+after it and `acc` with its bits, or `fail` on a byte out of range or at the end of the input, where
+the maximal subpart ends at `cur`. Not recursive, so that it is inlined, for each of the at most
+three continuation bytes.
+-/
+@[inline]
+private def continuation {β : Type} (start cur : Iter (α := ι) UInt8) (hcur : Advanced cur start)
+    (acc : UInt32) (lo hi : UInt8)
+    (k : (rest : Iter (α := ι) UInt8) → Advanced rest start → UInt32 → β) (fail : Unit → β) : β :=
+  nextToken cur
+    (fun r h b =>
+      if lo ≤ b && b ≤ hi then k r (h.trans hcur) (acc <<< 6 ||| (b &&& 0x3F).toUInt32)
+      else fail ())
+    fail
 
 /--
 Decodes one character from the UTF-8 bytes of `it`. Calls `yield` with the character and the
@@ -60,18 +67,31 @@ public def decodeChar {β : Type} (it : Iter (α := ι) UInt8)
     (yield : (rest : Iter (α := ι) UInt8) → Advanced rest it → Char → β)
     (error : DecodeError.Kind → (rest : Iter (α := ι) UInt8) → Advanced rest it → β)
     (done : Unit → β) : β :=
+  -- On ill-formed input, `skip it n` steps over the maximal subpart of `n + 1` bytes again, so `done`
+  -- is unreachable there.
   nextToken it (fun r h b =>
-    let c := continuation it r h
+    let c := continuation it
     if b < 0x80 then yield r h (Char.ofNat b.toNat)
-    else if b < 0xC2 then error .illFormedUTF8 r h
-    else if b < 0xE0 then c (b &&& 0x1F).toUInt32 1 0x80 0xBF yield error
+    else if b < 0xC2 then skip it 0 (error .illFormedUTF8) done
+    else if b < 0xE0 then
+      c r h (b &&& 0x1F).toUInt32 0x80 0xBF (fun r h acc => yield r h (Char.ofNat acc.toNat))
+        (fun _ => skip it 0 (error .illFormedUTF8) done)
     else if b < 0xF0 then
-      c (b &&& 0x0F).toUInt32 2 (if b == 0xE0 then 0xA0 else 0x80)
-        (if b == 0xED then 0x9F else 0xBF) yield error
+      c r h (b &&& 0x0F).toUInt32 (if b == 0xE0 then 0xA0 else 0x80)
+        (if b == 0xED then 0x9F else 0xBF)
+        (fun r h acc => c r h acc 0x80 0xBF (fun r h acc => yield r h (Char.ofNat acc.toNat))
+          (fun _ => skip it 1 (error .illFormedUTF8) done))
+        (fun _ => skip it 0 (error .illFormedUTF8) done)
     else if b < 0xF5 then
-      c (b &&& 0x07).toUInt32 3 (if b == 0xF0 then 0x90 else 0x80)
-        (if b == 0xF4 then 0x8F else 0xBF) yield error
-    else error .illFormedUTF8 r h)
+      c r h (b &&& 0x07).toUInt32 (if b == 0xF0 then 0x90 else 0x80)
+        (if b == 0xF4 then 0x8F else 0xBF)
+        (fun r h acc =>
+          c r h acc 0x80 0xBF
+            (fun r h acc => c r h acc 0x80 0xBF (fun r h acc => yield r h (Char.ofNat acc.toNat))
+              (fun _ => skip it 2 (error .illFormedUTF8) done))
+            (fun _ => skip it 1 (error .illFormedUTF8) done))
+        (fun _ => skip it 0 (error .illFormedUTF8) done)
+    else skip it 0 (error .illFormedUTF8) done)
     done
 
 end UTF8
