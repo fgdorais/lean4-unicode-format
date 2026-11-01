@@ -108,6 +108,8 @@ public def decodeIterLossy (it : Iter (α := ι) UInt8) : Iter (α := DecodeIter
 public def encodeIter (it : Iter (α := ι) Char) : Iter (α := EncodeIterator UTF8 ι) UInt8 :=
   Encoder.iter {} it
 
+section Signature
+
 variable [Iterator ι Id UInt8] [Iterators.Productive ι Id]
 
 /-- The iterator after the UTF-8 signature EF BB BF at `it`, or `it` if there is none. -/
@@ -119,6 +121,8 @@ public def skipSignature (it : Iter (α := ι) UInt8) : Iter (α := ι) UInt8 :=
         (fun _ => it))
       (fun _ => it))
     (fun _ => it)
+
+end Signature
 
 end UTF8
 
