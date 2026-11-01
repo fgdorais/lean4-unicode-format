@@ -8,6 +8,7 @@ public import UnicodeFormat.Basic
 public import UnicodeFormat.UTF16
 public import UnicodeFormat.UTF32
 import ScalarArray.Bytes
+import UnicodeFormat.Iterator.UTF8
 
 /-!
 # Encoding schemes
@@ -20,7 +21,10 @@ which tells the byte order of the rest and is not part of the text. UTF-8 has no
 its data sometimes starts with U+FEFF as a signature.
 
 A byte sequence whose size is not a multiple of the code unit size is ill-formed: lossy decoding
-replaces the incomplete code unit at the end with U+FFFD.
+replaces the incomplete code unit at the end with U+FFFD. Lossy UTF-8 decoding replaces each maximal
+subpart of an ill-formed byte sequence with U+FFFD, following the recommended practice of the
+Standard, Section 3.9, like `UTF8.decodeLossy`. Core's `String.fromUTF8Lossy` replaces each run of
+ill-formed bytes instead, so it can give fewer U+FFFD.
 -/
 
 open ScalarArray
@@ -162,11 +166,21 @@ unit at the end. -/
 private def decodeLossy32 (o : ByteOrder) (s : UInt8Array.Slice) : String :=
   fromUTF32Lossy ((ofBytes32? o (dropPartial s 4)).getD {}) ++ partialUnit s 4
 
-/-- Decodes `b` in the scheme `e`, replacing each ill-formed code unit with U+FFFD. -/
+/-- Decodes the UTF-8 bytes of `b`, replacing each maximal subpart of an ill-formed byte sequence
+with U+FFFD. -/
+-- Well-formed input takes core's fast path; only ill-formed input goes through the iterator, until
+-- core follows maximal subparts too: https://github.com/leanprover/lean4/issues/16145
+private def fromUTF8Lossy (b : ByteArray) : String :=
+  match String.fromUTF8? b with
+  | some s => s
+  | none => (UTF8.decodeLossy b.toUInt8Array.iter).fold String.push ""
+
+/-- Decodes `b` in the scheme `e`, replacing each ill-formed code unit with U+FFFD, or in UTF-8 each
+maximal subpart of an ill-formed byte sequence. -/
 public def decodeLossy (e : EncodingScheme) (b : ByteArray) : String :=
   match e with
-  | utf8 => String.fromUTF8Lossy b
-  | utf8BOM => String.fromUTF8Lossy (dropSignature b)
+  | utf8 => fromUTF8Lossy b
+  | utf8BOM => fromUTF8Lossy (dropSignature b)
   | utf16BE => decodeLossy16 .big (bytes b)
   | utf16LE => decodeLossy16 .little (bytes b)
   | utf16 o => let (o, b) := readBOM16 o b; decodeLossy16 o b

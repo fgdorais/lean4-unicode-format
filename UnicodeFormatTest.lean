@@ -300,3 +300,15 @@ def badUTF8 : List (List UInt8 × String) :=
   match it.step with
   | ⟨.yield it' u, _⟩ => u == 0xD83D && !it'.encodeBoundary && it'.encodeBase.toList == ['a']
   | _ => false
+
+/-! Lossy UTF-8 in the encoding schemes follows maximal subparts -/
+
+#guard badUTF8.all fun (b, s) => utf8.decodeLossy b.toByteArray == s
+#guard badUTF8.all fun (b, s) => utf8BOM.decodeLossy ([0xEF, 0xBB, 0xBF] ++ b).toByteArray == s
+#guard badUTF8.all fun (b, s) => (utf8.transcodeLossy utf16BE b.toByteArray).toList ==
+  (utf16BE.encode s).toList
+-- Unlike core, which replaces the run `ED A0 80` with a single U+FFFD. When the second test fails,
+-- core follows maximal subparts (https://github.com/leanprover/lean4/issues/16145), and
+-- `fromUTF8Lossy` in `EncodingScheme` can use it directly.
+#guard utf8.decodeLossy [0xED, 0xA0, 0x80].toByteArray == "���"
+#guard String.fromUTF8Lossy [0xED, 0xA0, 0x80].toByteArray == "�"
