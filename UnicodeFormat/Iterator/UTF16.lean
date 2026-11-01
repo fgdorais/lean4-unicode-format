@@ -32,6 +32,17 @@ variable {ι : Type} [Iterator ι Id UInt16] [Iterators.Productive ι Id]
 @[inline] private def isLow (u : UInt16) : Bool := u &&& 0xFC00 == 0xDC00
 
 /--
+Calls `error` with the iterator after the unpaired high surrogate at `it`. It steps `it` again rather
+than reuse the iterator after the surrogate, which keeps that iterator out of the path that decodes a
+surrogate pair, where the compiler then updates it in place.
+-/
+@[inline]
+private def unpaired {β : Type} (it : Iter (α := ι) UInt16)
+    (error : DecodeError.Kind → (rest : Iter (α := ι) UInt16) → Advanced rest it → β)
+    (done : Unit → β) : β :=
+  nextToken it (fun r h _ => error .unpairedSurrogate r h) done
+
+/--
 Decodes one character from the UTF-16 code units of `it`. Calls `yield` with the character and the
 iterator after it, `error` with the iterator after an unpaired surrogate, or `done` at the end of
 the input.
@@ -49,8 +60,8 @@ public def decodeChar {β : Type} (it : Iter (α := ι) UInt16)
             yield r₂ (h₂.trans h₁)
               (Char.ofNat (0x10000 + (u.toNat &&& 0x3FF) * 0x400 + (v.toNat &&& 0x3FF)))
           else
-            error .unpairedSurrogate r₁ h₁)
-        (fun _ => error .unpairedSurrogate r₁ h₁)
+            unpaired it error done)
+        (fun _ => unpaired it error done)
     else if isLow u then
       error .unpairedSurrogate r₁ h₁
     else
