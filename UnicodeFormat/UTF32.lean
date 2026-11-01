@@ -29,7 +29,7 @@ code unit that is not a scalar value. -/
 public def decode (s : UInt32Array.Slice) : Except DecodeError String :=
   match Decoder.foldUntilError ({} : UTF32) String.push "" s.iter with
   | (r, none) => .ok r
-  | (_, some (k, it)) => .error ⟨k, it.internalState.xs.start - s.start⟩
+  | (_, some (k, it)) => .error ⟨k, it.toUInt32Slice.start - s.start⟩
 
 /-- Decodes the UTF-32 code units of `s`, or returns `none` if `s` has a code unit that is not a
 Unicode scalar value. -/
