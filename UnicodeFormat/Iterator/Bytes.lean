@@ -124,8 +124,15 @@ namespace ByteOrder
 
 variable {ι : Type}
 
-/-- Decodes the bytes of `it` as UTF-16 code units in byte order `o`, stopping at an incomplete
-code unit. -/
+/--
+Decodes the bytes of `it` as UTF-16 code units in byte order `o`, stopping at an incomplete code
+unit.
+
+A `for` loop or fold over the result ends at ill-formed input just as at the end of the input. To
+tell them apart, check `it.decodeError?` on the iterator where decoding stopped, use
+`Decoder.foldUntilError`, which returns the error and where it is, or decode with
+`decodeIter16Lossy` instead.
+-/
 @[inline]
 public def decodeIter16 (o : ByteOrder) (it : Iter (α := ι) UInt8) :
     Iter (α := DecodeIterator Bytes16 ι) UInt16 :=
@@ -144,8 +151,15 @@ public def encodeIter16 (o : ByteOrder) (it : Iter (α := ι) UInt16) :
     Iter (α := EncodeIterator Bytes16 ι) UInt8 :=
   Encoder.iter ⟨o⟩ it
 
-/-- Decodes the bytes of `it` as UTF-32 code units in byte order `o`, stopping at an incomplete
-code unit. -/
+/--
+Decodes the bytes of `it` as UTF-32 code units in byte order `o`, stopping at an incomplete code
+unit.
+
+A `for` loop or fold over the result ends at ill-formed input just as at the end of the input. To
+tell them apart, check `it.decodeError?` on the iterator where decoding stopped, use
+`Decoder.foldUntilError`, which returns the error and where it is, or decode with
+`decodeIter32Lossy` instead.
+-/
 @[inline]
 public def decodeIter32 (o : ByteOrder) (it : Iter (α := ι) UInt8) :
     Iter (α := DecodeIterator Bytes32 ι) UInt32 :=
