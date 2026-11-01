@@ -92,11 +92,15 @@ public inductive DecodeError.Kind where
   | incompleteCodeUnit
   deriving Inhabited, DecidableEq, Repr
 
-/-- Ill-formed input: why, and where, as the index of its first token in the input. -/
+/--
+Ill-formed input: why, and where. The position is the index of the first token of the ill-formed
+input: of the code unit for UTF-16 and UTF-32, and of the byte for UTF-8 and the encoding schemes,
+counting a byte order mark or signature.
+-/
 public structure DecodeError where
   /-- Why the input is ill-formed. -/
   kind : DecodeError.Kind
-  /-- The index of the first token of the ill-formed input. -/
+  /-- The index of the first token of the ill-formed input, in code units or bytes. -/
   pos : Nat
   deriving Inhabited, DecidableEq, Repr
 
@@ -296,7 +300,8 @@ public class Encoder (ε : Type) (σ τ : outParam Type) where
 
 /--
 Iterator over the tokens that `encoder` writes for each token of an iterator of type `ι`. The
-encoding of `current` is yielded up to index `index`, of `length` tokens.
+encoding of the last input token `current` has `length` tokens, of which those before `index` have
+been yielded.
 -/
 public structure EncodeIterator (ε ι : Type) {σ τ : Type} [Encoder ε σ τ] where
   /-- The encoder. -/

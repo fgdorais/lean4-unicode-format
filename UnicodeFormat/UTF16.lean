@@ -15,8 +15,8 @@ surrogate pair: a high surrogate in D800–DBFF carrying the top ten bits of `c 
 low surrogate in DC00–DFFF carrying the bottom ten bits. A surrogate that is not part of such a
 pair is ill-formed.
 
-Decoding goes through `UTF16.decodeIter`; `decode` reports the position of the first unpaired
-surrogate, as an index in the slice.
+Decoding uses the decoder of `UTF16.decodeIter`. `decode` reports the position of the first
+unpaired surrogate, as an index in the slice.
 -/
 
 open ScalarArray Std
@@ -36,8 +36,8 @@ public def encode (s : String) : UInt16Array :=
   -- A character takes at least as many UTF-8 bytes as UTF-16 code units.
   s.chars.fold push (.emptyWithCapacity s.utf8ByteSize)
 
-/-- Decodes the UTF-16 code units of `s`, or returns the first unpaired surrogate and its index
-in `s`. -/
+/-- Decodes the UTF-16 code units of `s`, or returns an error with the index in `s` of the first
+unpaired surrogate. -/
 public def decode (s : UInt16Array.Slice) : Except DecodeError String :=
   match Decoder.foldUntilError ({} : UTF16) String.push "" s.iter with
   | (r, none) => .ok r

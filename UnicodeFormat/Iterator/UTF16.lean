@@ -8,10 +8,10 @@ public import UnicodeFormat.Iterator.Basic
 
 /-! # UTF-16 iterators
 
-`UTF16.decodeIter` reads characters from UTF-16 code units, and `UTF16.encodeIter` writes them back.
-An unpaired surrogate is ill-formed: a high surrogate reads its low surrogate by looking ahead, and
-when there is none, only the high surrogate is ill-formed and decoding goes on from the next code
-unit.
+`UTF16.decodeIter` reads characters from UTF-16 code units, and `UTF16.encodeIter` writes them
+back. An unpaired surrogate is ill-formed. A high surrogate reads its low surrogate by looking
+ahead; when there is none, only the high surrogate is ill-formed, and lossy decoding goes on from
+the next code unit.
 -/
 
 namespace Unicode

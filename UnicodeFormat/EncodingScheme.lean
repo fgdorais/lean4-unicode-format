@@ -28,6 +28,9 @@ ill-formed bytes instead, so it can give fewer U+FFFD.
 
 `decode` reports the first ill-formed input with its byte offset, counting the byte order mark or
 signature.
+
+`detect?` finds the scheme of bytes that start with a byte order mark or signature, and `name` and
+`ofName?` convert to and from the IANA charset names of the schemes.
 -/
 
 open ScalarArray
@@ -233,7 +236,7 @@ public def transcode? (src dst : EncodingScheme) (b : ByteArray) : Option ByteAr
   (src.transcode dst b).toOption
 
 /-- Converts `b` from the scheme `src` to the scheme `dst`, replacing each ill-formed code unit
-with U+FFFD. -/
+with U+FFFD, or in UTF-8 each maximal subpart of an ill-formed byte sequence. -/
 public def transcodeLossy (src dst : EncodingScheme) (b : ByteArray) : ByteArray :=
   dst.encode (src.decodeLossy b)
 
