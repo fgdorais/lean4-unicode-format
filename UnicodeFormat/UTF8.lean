@@ -11,7 +11,7 @@ public import UnicodeFormat.Iterator.UTF8
 # UTF-8
 
 The well-formed byte sequences are those of the Unicode Standard, Table 3-7. Encoding, strict
-decoding and validation are core's, which are fast. Ill-formed input goes through
+decoding and validation are core's, which are fast. Ill-formed input goes through the decoder of
 `UTF8.decodeIter`: `decode` reports the byte offset of the first maximal subpart of an ill-formed
 byte sequence, and `decodeLossy` replaces each maximal subpart with U+FFFD, following the
 recommended practice of the Standard, Section 3.9. Core's `String.fromUTF8Lossy` replaces each run
@@ -25,8 +25,8 @@ namespace Unicode.UTF8
 /-- The UTF-8 encoding of `s`. -/
 public def encode (s : String) : ByteArray := s.toUTF8
 
-/-- Decodes the UTF-8 bytes of `b`, or returns the first maximal subpart of an ill-formed byte
-sequence and its byte offset. -/
+/-- Decodes the UTF-8 bytes of `b`, or returns an error with the byte offset of the first maximal
+subpart of an ill-formed byte sequence. -/
 public def decode (b : ByteArray) : Except DecodeError String :=
   match String.fromUTF8? b with
   | some s => .ok s
