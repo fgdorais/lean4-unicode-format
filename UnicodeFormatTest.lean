@@ -285,6 +285,32 @@ def badUTF8 : List (List UInt8 × String) :=
 #guard str (utf16LE.decodeIterLossy [0x3D, 0xD8, 0x61].toUInt8Array.iter) == "\uFFFD\uFFFD"
 #guard (utf16LE.decodeLossy [0x3D, 0xD8, 0x61].toByteArray) == "\uFFFD\uFFFD"
 
+/-! Going on after ill-formed input -/
+
+/-- Strict decoding that goes on after each ill-formed input with U+FFFD. -/
+partial def recover {δ ι τ : Type} [Decoder δ τ Char] [Iterator ι Id τ] [Iterators.Productive ι Id]
+    (it : Iter (α := DecodeIterator δ ι) Char) (acc : String := "") : String :=
+  let (cs, stop) := run it
+  let acc := cs.foldl String.push acc
+  match stop.decodeContinue? with
+  | some (_, ⟨next, _⟩) => recover next (acc.push '\uFFFD')
+  | none => acc
+
+-- It gives what lossy decoding gives.
+#guard badUTF8.all fun (b, s) => recover (UTF8.decodeIter b.toUInt8Array.iter) == s
+#guard badUTF16.all fun (a, s) => recover (UTF16.decodeIter a.toUInt16Array.iter) == s
+#guard badUTF32.all fun (a, s) => recover (UTF32.decodeIter a.toUInt32Array.iter) == s
+#guard badBytes.all fun (e, b, s) => recover (e.decodeIter b.toUInt8Array.iter) == s
+-- Nothing to go on after in well-formed input, or at the end.
+#guard samples.all fun s => (UTF8.decodeIter s.toUTF8.toUInt8Array.iter).decodeContinue?.isNone
+-- The maximal subpart E2 88 is skipped as a whole, and the iterator keeps its mode.
+#guard
+  let (_, stop) := run (UTF8.decodeIter [0x61, 0xE2, 0x88, 0x62].toUInt8Array.iter)
+  match stop.decodeContinue? with
+  | some (k, ⟨next, _⟩) =>
+    k == .illFormedUTF8 && idx8 next.decodeBase == 3 && !next.decodeIsLossy && str next == "b"
+  | none => false
+
 /-! Decoding over an iterator that skips -/
 
 -- `filter` skips, so decoding goes through the loop of `nextToken` over `skip` steps.
