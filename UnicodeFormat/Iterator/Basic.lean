@@ -16,8 +16,9 @@ at an iterator: `Decoder.decode d it` continues with the token and the iterator 
 `DecodeError.Kind` and the iterator after the ill-formed input, or with the end of the input. It
 looks ahead by stepping copies of `it`, so it needs no buffer. `DecodeIterator δ ι` repeats it over
 an iterator of type `ι`. A strict decoding iterator stops at ill-formed input, where
-`it.decodeError?` tells why, and `it.decodeFailure?` finds the first ill-formed input ahead; a lossy
-one yields `Decoder.replacement d` instead and goes on after the ill-formed input.
+`it.decodeError?` tells why, `it.decodeFailure?` finds the first ill-formed input ahead, and
+`it.decodeContinue?` goes on after it; a lossy one yields `Decoder.replacement d` instead and goes on
+after the ill-formed input.
 `DecodeError.Kind` and `DecodeError` have `ToString` instances for error messages.
 
 An *encoder* `e : ε` with `[Encoder ε σ τ]` gives the tokens of type `τ` that encode a token of
@@ -253,6 +254,20 @@ public def _root_.Std.Iter.decodeError? (it : Iter (α := DecodeIterator δ ι) 
     Option DecodeError.Kind :=
   Decoder.decode it.internalState.decoder it.internalState.inner (fun _ _ _ => none)
     (fun e _ _ => some e) (fun _ => none)
+
+/--
+The kind of the ill-formed input at `it`, if there is one, and the iterator after it, with the same
+decoder and mode. A strict decoding iterator stops at ill-formed input: this is how a client such as
+a parser goes on after it. The iterator after the ill-formed input comes with the proof that it is
+reachable from `it`, for clients that track progress.
+-/
+public def _root_.Std.Iter.decodeContinue? (it : Iter (α := DecodeIterator δ ι) σ) :
+    Option (DecodeError.Kind × {next : Iter (α := DecodeIterator δ ι) σ // Advanced next it}) :=
+  let s := it.internalState
+  Decoder.decode s.decoder s.inner (fun _ _ _ => none)
+    (fun k rest h => some (k, ⟨⟨⟨s.decoder, s.lossy, rest⟩⟩,
+      Advanced.of_yield (out := Decoder.replacement s.decoder) ⟨rfl, rfl, h⟩⟩))
+    (fun _ => none)
 
 /-- Whether `it` yields `Decoder.replacement` for ill-formed input rather than ending there. -/
 @[inline]
