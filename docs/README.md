@@ -18,6 +18,24 @@ characters and `encodeIter` encodes them back, `ByteOrder.decodeIter16` and its 
 between bytes and code units, and a strict decoder stops at the first ill-formed input with the
 error and its position.
 
+## Installation
+
+Add the following dependency to your project's `lakefile.toml`:
+
+```toml
+[[require]]
+name = "UnicodeFormat"
+git = "https://github.com/fgdorais/lean4-unicode-format.git"
+rev = "main" # or any specific revision
+```
+
+Or this dependency to your project's `lakefile.lean`:
+
+```lean4
+require UnicodeFormat from git
+  "https://github.com/fgdorais/lean4-unicode-format.git" @ "main"
+```
+
 ## Usage
 
 ```lean4
@@ -42,24 +60,6 @@ open Unicode
 
 -- Decoding iterators, for streaming and parsing.
 #eval (UTF8.decodeIter "añb".toUTF8.toUInt8Array.iter).toList     -- ['a', 'ñ', 'b']
-```
-
-## Installation
-
-Add the following dependency to your project's `lakefile.toml`:
-
-```toml
-[[require]]
-name = "UnicodeFormat"
-git = "https://github.com/fgdorais/lean4-unicode-format.git"
-rev = "main" # or any specific revision
-```
-
-Or this dependency to your project's `lakefile.lean`:
-
-```lean4
-require UnicodeFormat from git
-  "https://github.com/fgdorais/lean4-unicode-format.git" @ "main"
 ```
 
 ## Documentation
