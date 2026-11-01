@@ -355,17 +355,26 @@ public def _root_.Std.Iter.decodeFailure? (it : Iter (α := DecodeIterator δ ι
   | (_, some (k, base)) => some (k, ⟨⟨s.decoder, s.lossy, base⟩⟩)
   | (_, none) => none
 
-/-- The loop of `decodeFold`, over the input iterator. -/
+/-- The loop of `decodeFold` for a strict decoding iterator, over the input iterator. -/
 @[specialize]
-private def decodeFoldLoop {γ : Type} (d : δ) (lossy : Bool) (f : γ → σ → γ) (acc : γ)
+private def decodeFoldStrict {γ : Type} (d : δ) (f : γ → σ → γ) (acc : γ)
     (inner : Iter (α := ι) τ) : γ × Iter (α := DecodeIterator δ ι) σ :=
   match (Decoder.decode d inner (fun rest h x => .yield rest h x) (fun k rest h => .error k rest h)
       (fun _ => .done) : DecodeStep inner σ) with
-  | .yield rest _ x => decodeFoldLoop d lossy f (f acc x) rest
-  | .error _ rest _ =>
-    if lossy then decodeFoldLoop d lossy f (f acc (Decoder.replacement d)) rest
-    else (acc, ⟨⟨d, lossy, inner⟩⟩)
-  | .done => (acc, ⟨⟨d, lossy, inner⟩⟩)
+  | .yield rest _ x => decodeFoldStrict d f (f acc x) rest
+  | .error _ _ _ | .done => (acc, ⟨⟨d, false, inner⟩⟩)
+termination_by inner.finitelyManySteps
+decreasing_by all_goals assumption
+
+/-- The loop of `decodeFold` for a lossy decoding iterator, over the input iterator. -/
+@[specialize]
+private def decodeFoldLossy {γ : Type} (d : δ) (f : γ → σ → γ) (acc : γ)
+    (inner : Iter (α := ι) τ) : γ × Iter (α := DecodeIterator δ ι) σ :=
+  match (Decoder.decode d inner (fun rest h x => .yield rest h x) (fun k rest h => .error k rest h)
+      (fun _ => .done) : DecodeStep inner σ) with
+  | .yield rest _ x => decodeFoldLossy d f (f acc x) rest
+  | .error _ rest _ => decodeFoldLossy d f (f acc (Decoder.replacement d)) rest
+  | .done => (acc, ⟨⟨d, true, inner⟩⟩)
 termination_by inner.finitelyManySteps
 decreasing_by all_goals assumption
 
@@ -378,7 +387,11 @@ gives the result alone.
 @[inline]
 public def _root_.Std.Iter.decodeFold {γ : Type} (f : γ → σ → γ) (init : γ)
     (it : Iter (α := DecodeIterator δ ι) σ) : γ × Iter (α := DecodeIterator δ ι) σ :=
-  decodeFoldLoop it.internalState.decoder it.internalState.lossy f init it.internalState.inner
+  -- Two loops rather than one that tests `lossy` at each error: in a single loop, the compiler keeps
+  -- the input iterator alive across each step, and then copies it rather than update it in place.
+  let s := it.internalState
+  if s.lossy then decodeFoldLossy s.decoder f init s.inner
+  else decodeFoldStrict s.decoder f init s.inner
 
 end Failure
 
