@@ -32,7 +32,7 @@ public def decode (b : ByteArray) : Except DecodeError String :=
   | some s => .ok s
   | none =>
     match Decoder.foldUntilError ({} : UTF8) (fun _ _ => ()) () b.toUInt8Array.iter with
-    | (_, some (k, it)) => .error ⟨k, it.internalState.xs.start⟩
+    | (_, some (k, it)) => .error ⟨k, it.toUInt8Slice.start⟩
     -- Unreachable: core and `UTF8.decodeIter` accept the same byte sequences.
     | (_, none) => .error ⟨.illFormedUTF8, b.size⟩
 

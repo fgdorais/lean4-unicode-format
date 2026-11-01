@@ -195,8 +195,8 @@ def stopError? {δ ι τ σ : Type} [Decoder δ τ σ] [Iterator ι Id τ] [Iter
   (run it).2.decodeError?
 
 /-- The index in the underlying array of a scalar array slice iterator. -/
-def idx16 (it : Iter (α := UInt16Array.SliceIterator) UInt16) : Nat := it.internalState.xs.start
-def idx8 (it : Iter (α := UInt8Array.SliceIterator) UInt8) : Nat := it.internalState.xs.start
+def idx16 (it : Iter (α := UInt16Array.SliceIterator) UInt16) : Nat := it.toUInt16Slice.start
+def idx8 (it : Iter (α := UInt8Array.SliceIterator) UInt8) : Nat := it.toUInt8Slice.start
 
 /-! UTF-16 iterators -/
 

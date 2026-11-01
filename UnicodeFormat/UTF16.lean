@@ -41,7 +41,7 @@ unpaired surrogate. -/
 public def decode (s : UInt16Array.Slice) : Except DecodeError String :=
   match Decoder.foldUntilError ({} : UTF16) String.push "" s.iter with
   | (r, none) => .ok r
-  | (_, some (k, it)) => .error ⟨k, it.internalState.xs.start - s.start⟩
+  | (_, some (k, it)) => .error ⟨k, it.toUInt16Slice.start - s.start⟩
 
 /-- Decodes the UTF-16 code units of `s`, or returns `none` if `s` has an unpaired surrogate. -/
 public def decode? (s : UInt16Array.Slice) : Option String := (decode s).toOption
