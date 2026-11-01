@@ -4,6 +4,10 @@ UTF-16 and UTF-32 encoding and decoding of Lean strings, stored in the unboxed `
 `UInt32Array` of [lean4-scalar-arrays](https://github.com/fgdorais/lean4-scalar-arrays). Decoding
 is either strict, failing on ill-formed input, or lossy, replacing it with U+FFFD.
 
+The Unicode encoding schemes serialize these as bytes: UTF-8, UTF-16BE, UTF-16LE, UTF-32BE and
+UTF-32LE, the UTF-16 and UTF-32 schemes with a byte order mark, and UTF-8 with a signature.
+`Unicode.EncodingScheme` encodes, decodes, validates and converts between them.
+
 ## Installation
 
 Add the following dependency to your project's `lakefile.toml`:

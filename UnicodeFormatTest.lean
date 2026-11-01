@@ -89,3 +89,84 @@ def badUTF32 : List (List UInt32 × String) :=
 /-! UTF-16 and UTF-32 agree -/
 
 #guard samples.all fun s => fromUTF32? (toUTF32 (fromUTF16! (toUTF16 s))) == some s
+
+/-! Encoding schemes -/
+
+open EncodingScheme
+
+/-- Every encoding scheme, with both byte orders for the schemes with a byte order mark. -/
+def schemes : List EncodingScheme :=
+  [utf8, utf8BOM, utf16BE, utf16LE, .utf16, .utf16 .little,
+    utf32BE, utf32LE, .utf32, .utf32 .little]
+
+#guard schemes.all fun e => samples.all fun s => e.decode? (e.encode s) == some s
+#guard schemes.all fun e => samples.all fun s => e.decode! (e.encode s) == s
+#guard schemes.all fun e => samples.all fun s => e.decodeLossy (e.encode s) == s
+#guard schemes.all fun e => samples.all fun s => e.validate (e.encode s)
+#guard schemes.all fun e => e.decode? ByteArray.empty == some ""
+
+/-! Encoding scheme bytes -/
+
+#guard (utf8.encode "﻿a").toList == [0xEF, 0xBB, 0xBF, 0x61]
+#guard (utf8BOM.encode "a").toList == [0xEF, 0xBB, 0xBF, 0x61]
+#guard (utf16BE.encode "a😀").toList == [0x00, 0x61, 0xD8, 0x3D, 0xDE, 0x00]
+#guard (utf16LE.encode "a😀").toList == [0x61, 0x00, 0x3D, 0xD8, 0x00, 0xDE]
+#guard (EncodingScheme.utf16.encode "a").toList == [0xFE, 0xFF, 0x00, 0x61]
+#guard ((utf16 .little).encode "a").toList == [0xFF, 0xFE, 0x61, 0x00]
+#guard (utf32BE.encode "😀").toList == [0x00, 0x01, 0xF6, 0x00]
+#guard (utf32LE.encode "😀").toList == [0x00, 0xF6, 0x01, 0x00]
+#guard (EncodingScheme.utf32.encode "a").toList == [0x00, 0x00, 0xFE, 0xFF, 0x00, 0x00, 0x00, 0x61]
+#guard ((utf32 .little).encode "a").toList == [0xFF, 0xFE, 0x00, 0x00, 0x61, 0x00, 0x00, 0x00]
+
+/-! Byte order marks -/
+
+-- A mark is read only by the schemes with one, and only at the start.
+#guard utf8.decode? [0xEF, 0xBB, 0xBF, 0x61].toByteArray == some "﻿a"
+#guard utf8BOM.decode? [0xEF, 0xBB, 0xBF, 0x61].toByteArray == some "a"
+#guard utf8BOM.decode? [0x61].toByteArray == some "a"
+#guard utf8BOM.decode? [0xEF, 0xBB, 0xBF, 0xEF, 0xBB, 0xBF].toByteArray == some "﻿"
+#guard utf16BE.decode? [0xFE, 0xFF, 0x00, 0x61].toByteArray == some "﻿a"
+#guard utf16LE.decode? [0xFF, 0xFE, 0x61, 0x00].toByteArray == some "﻿a"
+#guard EncodingScheme.utf16.decode? [0xFE, 0xFF, 0x00, 0x61].toByteArray == some "a"
+#guard EncodingScheme.utf16.decode? [0xFF, 0xFE, 0x61, 0x00].toByteArray == some "a"
+#guard EncodingScheme.utf16.decode? [0xFE, 0xFF, 0xFE, 0xFF].toByteArray == some "﻿"
+#guard utf32BE.decode? [0x00, 0x00, 0xFE, 0xFF].toByteArray == some "﻿"
+#guard EncodingScheme.utf32.decode? [0xFF, 0xFE, 0x00, 0x00, 0x61, 0x00, 0x00, 0x00].toByteArray ==
+  some "a"
+
+-- Without a mark, the byte order of the scheme, by default big-endian.
+#guard EncodingScheme.utf16.decode? [0x00, 0x61].toByteArray == some "a"
+#guard (utf16 .little).decode? [0x61, 0x00].toByteArray == some "a"
+#guard (utf16 .little).decode? [0xFE, 0xFF, 0x00, 0x61].toByteArray == some "a"
+#guard EncodingScheme.utf32.decode? [0x00, 0x00, 0x00, 0x61].toByteArray == some "a"
+#guard (utf32 .little).decode? [0x61, 0x00, 0x00, 0x00].toByteArray == some "a"
+
+/-! Ill-formed encoding scheme bytes -/
+
+/-- Ill-formed bytes in a scheme, and their lossy decodings. -/
+def badBytes : List (EncodingScheme × List UInt8 × String) :=
+  [(utf8, [0x61, 0xFF], "a�"),
+   (utf8BOM, [0xEF, 0xBB, 0xBF, 0xFF], "�"),
+   (utf16BE, [0x00], "�"),
+   (utf16BE, [0x00, 0x61, 0x00], "a�"),
+   (utf16BE, [0xD8, 0x3D, 0x00, 0x61], "�a"),
+   (utf16LE, [0x3D, 0xD8], "�"),
+   (.utf16, [0xFE, 0xFF, 0xDE, 0x00], "�"),
+   (.utf16, [0xFF, 0xFE, 0x61], "�"),
+   (utf32BE, [0x00, 0x00, 0x00], "�"),
+   (utf32BE, [0x00, 0x00, 0x00, 0x61, 0x00], "a�"),
+   (utf32BE, [0x00, 0x00, 0xD8, 0x00], "�"),
+   (utf32LE, [0x00, 0x00, 0x11, 0x00], "�"),
+   (.utf32 .little, [0xFF, 0xFE, 0x00, 0x00, 0x00, 0xD8, 0x00, 0x00], "�")]
+
+#guard badBytes.all fun (e, b, _) => e.decode? b.toByteArray == none
+#guard badBytes.all fun (e, b, _) => !e.validate b.toByteArray
+#guard badBytes.all fun (e, b, s) => e.decodeLossy b.toByteArray == s
+
+/-! Transcoding -/
+
+#guard schemes.all fun src => schemes.all fun dst => samples.dropLast.all fun s =>
+  (src.transcode? dst (src.encode s)).map ByteArray.toList == some (dst.encode s).toList
+#guard (utf16LE.transcode? utf8 [0x3D, 0xD8].toByteArray) == none
+#guard (utf16LE.transcodeLossy utf8 [0x3D, 0xD8, 0x61, 0x00].toByteArray).toList ==
+  [0xEF, 0xBF, 0xBD, 0x61]
