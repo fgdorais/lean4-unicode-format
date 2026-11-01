@@ -259,6 +259,15 @@ def badUTF8 : List (List UInt8 × String) :=
   let (cs, it) := run (UTF8.decodeIter [0x61, 0xE2, 0x88, 0x61].toUInt8Array.iter)
   cs == #['a'] && idx8 it.decodeBase == 1
 
+/-! Decoding over an iterator that skips -/
+
+-- `filter` skips, so decoding goes through the loop of `nextToken` over `skip` steps.
+#guard str (UTF8.decodeIter ([0x61, 0, 0xC3, 0, 0xA9, 0x62].toUInt8Array.iter.filter (· != 0))) ==
+  "aéb"
+#guard
+  let b := (List.replicate 100000 (0 : UInt8) ++ [0x61]).toUInt8Array
+  str (UTF8.decodeIter (b.iter.filter (· != 0))) == "a"
+
 /-! Finding ill-formed input ahead -/
 
 #guard samples.all fun s => (UTF8.decodeIter s.toUTF8.toUInt8Array.iter).decodeFailure?.isNone
