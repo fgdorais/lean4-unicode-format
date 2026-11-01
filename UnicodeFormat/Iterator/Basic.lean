@@ -193,7 +193,9 @@ public instance (priority := low) [Monad m] : IteratorLoop (DecodeIterator δ ι
   .defaultImplementation
 
 -- Each token goes through `lift`, like each step of the iterator in the default implementation, so
--- the two agree for every lawful `lift`, which is what core's consumers pass.
+-- the two agree for every lawful `lift`, which is what core's consumers pass. The loop recurses
+-- after `bind`, not inside the function passed to `lift`: when `lift` is not inlined, a recursive
+-- call there takes a stack frame for each token.
 @[inline]
 private unsafe def forInImpl {n : Type → Type} [Monad n]
     (lift : (γ : Type) → (δ : Type) → (γ → n δ) → Id γ → n δ) (γ : Type)
@@ -207,11 +209,10 @@ where
       (fun _ rest _ => if lossy then .yield rest (Decoder.replacement d) else .error rest)
       (fun _ => .done)
     match step with
-    | .yield rest x =>
-      lift _ _ (fun x => do
-        match ← f x lcProof c with
-        | ⟨.yield c, _⟩ => loop d lossy rest c
-        | ⟨.done c, _⟩ => pure c) (pure x)
+    | .yield rest x => do
+      match ← lift _ _ (fun _ => f x lcProof c) (pure x) with
+      | ⟨.yield c, _⟩ => loop d lossy rest c
+      | ⟨.done c, _⟩ => pure c
     | .error _ | .done => pure c
 
 /--
@@ -452,7 +453,9 @@ public instance (priority := low) [Monad m] : IteratorLoop (EncodeIterator ε ι
   .defaultImplementation
 
 -- Each token goes through `lift`, like each step of the iterator in the default implementation, so
--- the two agree for every lawful `lift`, which is what core's consumers pass.
+-- the two agree for every lawful `lift`, which is what core's consumers pass. The loop recurses
+-- after `bind`, not inside the function passed to `lift`: when `lift` is not inlined, a recursive
+-- call there takes a stack frame for each token.
 @[inline]
 private unsafe def forInImpl {n : Type x → Type x'} [Monad n] [Iterators.Productive ι Id]
     (lift : (γ : Type) → (δ : Type x) → (γ → n δ) → Id γ → n δ) (γ : Type x)
@@ -462,11 +465,11 @@ private unsafe def forInImpl {n : Type x → Type x'} [Monad n] [Iterators.Produ
   loop s.encoder s.inner s.current s.index s.length init
 where
   @[specialize] loop (e : ε) (inner : Iter (α := ι) σ) (cur : σ) (i len : Nat) (c : γ) : n γ :=
-    if i < len then
-      lift _ _ (fun u => do
-        match ← f u lcProof c with
-        | ⟨.yield c, _⟩ => loop e inner cur (i + 1) len c
-        | ⟨.done c, _⟩ => pure c) (pure (Encoder.unit e cur i))
+    if i < len then do
+      let u := Encoder.unit e cur i
+      match ← lift _ _ (fun _ => f u lcProof c) (pure u) with
+      | ⟨.yield c, _⟩ => loop e inner cur (i + 1) len c
+      | ⟨.done c, _⟩ => pure c
     else
       match (nextToken inner (fun rest _ x => .yield rest x) (fun _ => .done) : Step ι σ σ) with
       | .yield rest x => loop e rest x 0 (Encoder.length e x) c
