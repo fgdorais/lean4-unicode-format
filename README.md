@@ -6,7 +6,8 @@ is either strict, failing on ill-formed input, or lossy, replacing it with U+FFF
 
 The Unicode encoding schemes serialize these as bytes: UTF-8, UTF-16BE, UTF-16LE, UTF-32BE and
 UTF-32LE, the UTF-16 and UTF-32 schemes with a byte order mark, and UTF-8 with a signature.
-`Unicode.EncodingScheme` encodes, decodes, validates and converts between them.
+`Unicode.EncodingScheme` encodes, decodes, validates and converts between them, detects a scheme
+from its byte order mark, and converts to and from IANA charset names.
 
 The same conversions are also iterator transformers over pure `Std.Iter` iterators, for streaming
 and parsing: `UTF8`, `UTF16` and `UTF32` decode code units to characters and encode them back,

@@ -210,6 +210,58 @@ with U+FFFD. -/
 public def transcodeLossy (src dst : EncodingScheme) (b : ByteArray) : ByteArray :=
   dst.encode (src.decodeLossy b)
 
+/-! Detection and names -/
+
+/--
+The scheme given by the byte order mark or UTF-8 signature at the start of `b`, if there is one:
+`utf8BOM`, `utf16 o` or `utf32 o`, so decoding `b` in that scheme skips the mark. The bytes
+FF FE 00 00 start both UTF-32LE with a byte order mark and UTF-16LE with a byte order mark followed
+by U+0000; they are taken as UTF-32LE, as is usual.
+-/
+public def detect? (b : ByteArray) : Option EncodingScheme :=
+  if startsWith b [0xEF, 0xBB, 0xBF] then some utf8BOM
+  else if startsWith b [0x00, 0x00, 0xFE, 0xFF] then some (utf32 .big)
+  else if startsWith b [0xFF, 0xFE, 0x00, 0x00] then some (utf32 .little)
+  else if startsWith b [0xFE, 0xFF] then some (utf16 .big)
+  else if startsWith b [0xFF, 0xFE] then some (utf16 .little)
+  else none
+
+/--
+The IANA charset name of the scheme `e`: `"UTF-8"`, `"UTF-16BE"`, `"UTF-16LE"`, `"UTF-16"`,
+`"UTF-32BE"`, `"UTF-32LE"` or `"UTF-32"`. UTF-8 with a signature has no name of its own, and the
+names of the UTF-16 and UTF-32 schemes do not tell the byte order of `utf16 o` and `utf32 o`.
+-/
+public def name (e : EncodingScheme) : String :=
+  match e with
+  | utf8 | utf8BOM => "UTF-8"
+  | utf16BE => "UTF-16BE"
+  | utf16LE => "UTF-16LE"
+  | utf16 _ => "UTF-16"
+  | utf32BE => "UTF-32BE"
+  | utf32LE => "UTF-32LE"
+  | utf32 _ => "UTF-32"
+
+/--
+The scheme with the IANA charset name or alias `s`, ignoring ASCII case: `UTF-8`, `UTF-16BE`,
+`UTF-16LE`, `UTF-16`, `UTF-32BE`, `UTF-32LE` and `UTF-32`, and their aliases `csUTF8`,
+`csUTF16BE` and so on. `UTF-8` is `utf8`, and `UTF-16` and `UTF-32` are `utf16 .big` and
+`utf32 .big`, which read a byte order mark if there is one.
+
+The labels of the WHATWG Encoding Standard are not names here: some of them conflict with IANA
+names, such as `utf-16`, which WHATWG takes as UTF-16LE, and WHATWG decoding follows a byte order
+mark whatever the label.
+-/
+public def ofName? (s : String) : Option EncodingScheme :=
+  match s.toLower with
+  | "utf-8" | "csutf8" => some utf8
+  | "utf-16be" | "csutf16be" => some utf16BE
+  | "utf-16le" | "csutf16le" => some utf16LE
+  | "utf-16" | "csutf16" => some (utf16 .big)
+  | "utf-32be" | "csutf32be" => some utf32BE
+  | "utf-32le" | "csutf32le" => some utf32LE
+  | "utf-32" | "csutf32" => some (utf32 .big)
+  | _ => none
+
 end EncodingScheme
 
 end Unicode

@@ -312,3 +312,35 @@ def badUTF8 : List (List UInt8 × String) :=
 -- `fromUTF8Lossy` in `EncodingScheme` can use it directly.
 #guard utf8.decodeLossy [0xED, 0xA0, 0x80].toByteArray == "���"
 #guard String.fromUTF8Lossy [0xED, 0xA0, 0x80].toByteArray == "�"
+
+/-! Detection -/
+
+#guard detect? [0xEF, 0xBB, 0xBF, 0x61].toByteArray == some utf8BOM
+#guard detect? [0xFE, 0xFF, 0x00, 0x61].toByteArray == some (utf16 .big)
+#guard detect? [0xFF, 0xFE, 0x61, 0x00].toByteArray == some (utf16 .little)
+#guard detect? [0x00, 0x00, 0xFE, 0xFF].toByteArray == some (utf32 .big)
+#guard detect? [0xFF, 0xFE, 0x00, 0x00].toByteArray == some (utf32 .little)
+#guard detect? [0x61, 0x62].toByteArray == none
+#guard detect? ByteArray.empty == none
+-- Decoding in the detected scheme skips the mark, except for UTF-16LE text that starts with U+0000.
+#guard schemes.all fun e => samples.all fun s =>
+  match e with
+  | utf8BOM | .utf16 .big | .utf32 _ =>
+    let b := e.encode s
+    (detect? b).bind (·.decode? b) == some s
+  | .utf16 .little =>
+    let b := e.encode s
+    s.startsWith "\u0000" || (detect? b).bind (·.decode? b) == some s
+  | _ => true
+#guard detect? ((utf16 .little).encode "\u0000a") == some (utf32 .little)
+
+/-! Names -/
+
+#guard schemes.all fun e => (ofName? e.name).isSome
+#guard schemes.all fun e => (ofName? e.name).map name == some e.name
+#guard ofName? "utf-8" == some utf8
+#guard ofName? "UTF-16LE" == some utf16LE
+#guard ofName? "Utf-16" == some (utf16 .big)
+#guard ofName? "csUTF32BE" == some utf32BE
+#guard ofName? "UTF8" == none
+#guard ofName? "latin1" == none
