@@ -174,12 +174,14 @@ public instance : Iterator (DecodeIterator δ ι) Id σ where
     | .skip _ => False
     | .done => True
   step := fun ⟨⟨d, lossy, inner⟩⟩ =>
-    pure <| Decoder.decode d inner
-      (fun rest h x => .deflate ⟨.yield ⟨⟨d, lossy, rest⟩⟩ x, ⟨rfl, rfl, h⟩⟩)
-      (fun _ rest h =>
-        if lossy then .deflate ⟨.yield ⟨⟨d, lossy, rest⟩⟩ (Decoder.replacement d), ⟨rfl, rfl, h⟩⟩
-        else .deflate ⟨.done, trivial⟩)
-      (fun _ => .deflate ⟨.done, trivial⟩)
+    -- Decoding to data first builds the next iterator in one place. In the continuations, it would
+    -- be built in each branch that they are inlined into, which meet in a join point, and the
+    -- compiler does not update memory in place across join points.
+    match (Decoder.decode d inner (fun rest h x => some (⟨rest, h⟩, x))
+        (fun _ rest h => if lossy then some (⟨rest, h⟩, Decoder.replacement d) else none)
+        (fun _ => none) : Option ({rest : Iter (α := ι) τ // Advanced rest inner} × σ)) with
+    | some (⟨rest, h⟩, x) => pure (.deflate ⟨.yield ⟨⟨d, lossy, rest⟩⟩ x, ⟨rfl, rfl, h⟩⟩)
+    | none => pure (.deflate ⟨.done, trivial⟩)
 
 /-- Every step moves the input iterator strictly forward. -/
 public theorem advanced_of_successor {it' it : IterM (α := DecodeIterator δ ι) Id σ}
