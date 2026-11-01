@@ -53,22 +53,27 @@ public theorem Advanced.of_skip {it' it : Iter (α := ι) τ}
     (h : it.IsPlausibleStep (.skip it')) : Advanced it' it :=
   IterM.TerminationMeasures.Finite.rel_of_skip h
 
-/-- `nextToken` after a `skip` step: the loop over any further `skip` steps. -/
-@[specialize]
-public def nextTokenAfterSkip [Iterators.Productive ι Id] {β : Sort _} (it : Iter (α := ι) τ)
-    (yield : (rest : Iter (α := ι) τ) → Advanced rest it → τ → β) (done : Unit → β) : β :=
+/-- The next token after `skip` steps, as data, so that `nextToken` does not pass its continuation
+into the loop over `skip` steps. -/
+private inductive Skipped (it : Iter (α := ι) τ) where
+  | yield (rest : Iter (α := ι) τ) (h : Advanced rest it) (x : τ)
+  | done
+
+/-- The loop of `nextToken` over `skip` steps, from `start`, at `it`. -/
+private def skipped [Iterators.Productive ι Id] (start it : Iter (α := ι) τ)
+    (hit : Advanced it start) : Skipped start :=
   match it.step with
-  | ⟨.yield it' x, h⟩ => yield it' (.of_yield h) x
-  | ⟨.skip it', h⟩ =>
-    nextTokenAfterSkip it' (fun rest h' x => yield rest (h'.trans (.of_skip h)) x) done
-  | ⟨.done, _⟩ => done ()
+  | ⟨.yield it' x, h⟩ => .yield it' ((Advanced.of_yield h).trans hit) x
+  | ⟨.skip it', h⟩ => skipped start it' ((Advanced.of_skip h).trans hit)
+  | ⟨.done, _⟩ => .done
 termination_by it.finitelyManySkips
 
 /--
 Steps `it` past any `skip` steps. Calls `yield` with the next token and the iterator after it, or
-`done` at the end of the input. Written in continuation-passing style, and the first step is
-inlined, so that specialization avoids allocating an intermediate result; only further `skip` steps
-go through `nextTokenAfterSkip`.
+`done` at the end of the input. Written in continuation-passing style, and inlined, so that
+specialization avoids allocating an intermediate result. Further `skip` steps go through a loop that
+returns data rather than taking `yield`: a continuation passed into that loop would become a closure,
+allocated for every token even when nothing skips.
 -/
 @[inline]
 public def nextToken [Iterators.Productive ι Id] {β : Sort _} (it : Iter (α := ι) τ)
@@ -76,7 +81,9 @@ public def nextToken [Iterators.Productive ι Id] {β : Sort _} (it : Iter (α :
   match it.step with
   | ⟨.yield it' x, h⟩ => yield it' (.of_yield h) x
   | ⟨.skip it', h⟩ =>
-    nextTokenAfterSkip it' (fun rest h' x => yield rest (h'.trans (.of_skip h)) x) done
+    match skipped it it' (.of_skip h) with
+    | .yield rest h' x => yield rest h' x
+    | .done => done ()
   | ⟨.done, _⟩ => done ()
 
 end Advanced
