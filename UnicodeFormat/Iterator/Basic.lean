@@ -52,19 +52,31 @@ public theorem Advanced.of_skip {it' it : Iter (α := ι) τ}
     (h : it.IsPlausibleStep (.skip it')) : Advanced it' it :=
   IterM.TerminationMeasures.Finite.rel_of_skip h
 
+/-- `nextToken` after a `skip` step: the loop over any further `skip` steps. -/
+@[specialize]
+public def nextTokenAfterSkip [Iterators.Productive ι Id] {β : Sort _} (it : Iter (α := ι) τ)
+    (yield : (rest : Iter (α := ι) τ) → Advanced rest it → τ → β) (done : Unit → β) : β :=
+  match it.step with
+  | ⟨.yield it' x, h⟩ => yield it' (.of_yield h) x
+  | ⟨.skip it', h⟩ =>
+    nextTokenAfterSkip it' (fun rest h' x => yield rest (h'.trans (.of_skip h)) x) done
+  | ⟨.done, _⟩ => done ()
+termination_by it.finitelyManySkips
+
 /--
 Steps `it` past any `skip` steps. Calls `yield` with the next token and the iterator after it, or
-`done` at the end of the input. Written in continuation-passing style so that specialization
-avoids allocating an intermediate result.
+`done` at the end of the input. Written in continuation-passing style, and the first step is
+inlined, so that specialization avoids allocating an intermediate result; only further `skip` steps
+go through `nextTokenAfterSkip`.
 -/
-@[specialize]
+@[inline]
 public def nextToken [Iterators.Productive ι Id] {β : Sort _} (it : Iter (α := ι) τ)
     (yield : (rest : Iter (α := ι) τ) → Advanced rest it → τ → β) (done : Unit → β) : β :=
   match it.step with
   | ⟨.yield it' x, h⟩ => yield it' (.of_yield h) x
-  | ⟨.skip it', h⟩ => nextToken it' (fun rest h' x => yield rest (h'.trans (.of_skip h)) x) done
+  | ⟨.skip it', h⟩ =>
+    nextTokenAfterSkip it' (fun rest h' x => yield rest (h'.trans (.of_skip h)) x) done
   | ⟨.done, _⟩ => done ()
-termination_by it.finitelyManySkips
 
 end Advanced
 
@@ -79,6 +91,12 @@ public inductive DecodeError where
   /-- An incomplete code unit at the end of the bytes of UTF-16 or UTF-32 code units. -/
   | incompleteCodeUnit
   deriving Inhabited, DecidableEq, Repr
+
+/-- One step of reading a token, as data, so that a loop over it is a self tail call. -/
+private inductive Step (ι τ σ : Type) where
+  | yield (rest : Iter (α := ι) τ) (x : σ)
+  | error (rest : Iter (α := ι) τ)
+  | done
 
 /-! ## Decoders -/
 
@@ -143,7 +161,48 @@ private def finitenessRelation [Iterators.Finite ι Id] :
 public instance [Iterators.Finite ι Id] : Iterators.Finite (DecodeIterator δ ι) Id :=
   .of_finitenessRelation finitenessRelation
 
-public instance [Monad m] : IteratorLoop (DecodeIterator δ ι) Id m := .defaultImplementation
+public instance (priority := low) [Monad m] : IteratorLoop (DecodeIterator δ ι) Id m :=
+  .defaultImplementation
+
+-- Each token goes through `lift`, like each step of the iterator in the default implementation, so
+-- the two agree for every lawful `lift`, which is what core's consumers pass.
+@[inline]
+private unsafe def forInImpl {n : Type → Type} [Monad n]
+    (lift : (γ : Type) → (δ : Type) → (γ → n δ) → Id γ → n δ) (γ : Type)
+    (Pl : σ → γ → ForInStep γ → Prop) (it : IterM (α := DecodeIterator δ ι) Id σ) (init : γ)
+    (f : (b : σ) → it.IsPlausibleIndirectOutput b → (c : γ) → n (Subtype (Pl b c))) : n γ :=
+  let s := it.internalState
+  loop s.decoder s.lossy s.inner init
+where
+  @[specialize] loop (d : δ) (lossy : Bool) (inner : Iter (α := ι) τ) (c : γ) : n γ :=
+    let step : Step ι τ σ := Decoder.decode d inner (fun rest _ x => .yield rest x)
+      (fun _ rest _ => if lossy then .yield rest (Decoder.replacement d) else .error rest)
+      (fun _ => .done)
+    match step with
+    | .yield rest x =>
+      lift _ _ (fun x => do
+        match ← f x lcProof c with
+        | ⟨.yield c, _⟩ => loop d lossy rest c
+        | ⟨.done c, _⟩ => pure c) (pure x)
+    | .error _ | .done => pure c
+
+/--
+The loop behind `for` loops and the `Std.Iterators` consumers on decoding iterators. Logically it
+is `Std.IteratorLoop.defaultImplementation`, which steps the iterator one token at a time; it is
+implemented by decoding directly from the input iterator.
+-/
+@[implemented_by forInImpl]
+public def forIn {n : Type → Type} [Monad n]
+    (lift : (γ : Type) → (δ : Type) → (γ → n δ) → Id γ → n δ) (γ : Type)
+    (Pl : σ → γ → ForInStep γ → Prop) (it : IterM (α := DecodeIterator δ ι) Id σ) (init : γ)
+    (f : (b : σ) → it.IsPlausibleIndirectOutput b → (c : γ) → n (Subtype (Pl b c))) : n γ :=
+  IteratorLoop.defaultImplementation.forIn lift γ Pl it init f
+
+public instance {n : Type → Type} [Monad n] : IteratorLoop (DecodeIterator δ ι) Id n where
+  forIn := forIn
+
+public instance {n : Type → Type} [Monad n] : LawfulIteratorLoop (DecodeIterator δ ι) Id n where
+  lawful _ _ _ _ _ _ _ _ := rfl
 
 /-- The input iterator, at the start of the next token to decode. -/
 @[inline]
@@ -294,7 +353,49 @@ private def finitenessRelation [Iterators.Finite ι Id] :
 public instance [Iterators.Finite ι Id] : Iterators.Finite (EncodeIterator ε ι) Id :=
   .of_finitenessRelation finitenessRelation
 
-public instance [Monad m] : IteratorLoop (EncodeIterator ε ι) Id m := .defaultImplementation
+public instance (priority := low) [Monad m] : IteratorLoop (EncodeIterator ε ι) Id m :=
+  .defaultImplementation
+
+-- Each token goes through `lift`, like each step of the iterator in the default implementation, so
+-- the two agree for every lawful `lift`, which is what core's consumers pass.
+@[inline]
+private unsafe def forInImpl {n : Type x → Type x'} [Monad n] [Iterators.Productive ι Id]
+    (lift : (γ : Type) → (δ : Type x) → (γ → n δ) → Id γ → n δ) (γ : Type x)
+    (Pl : τ → γ → ForInStep γ → Prop) (it : IterM (α := EncodeIterator ε ι) Id τ) (init : γ)
+    (f : (b : τ) → it.IsPlausibleIndirectOutput b → (c : γ) → n (Subtype (Pl b c))) : n γ :=
+  let s := it.internalState
+  loop s.encoder s.inner s.current s.index s.length init
+where
+  @[specialize] loop (e : ε) (inner : Iter (α := ι) σ) (cur : σ) (i len : Nat) (c : γ) : n γ :=
+    if i < len then
+      lift _ _ (fun u => do
+        match ← f u lcProof c with
+        | ⟨.yield c, _⟩ => loop e inner cur (i + 1) len c
+        | ⟨.done c, _⟩ => pure c) (pure (Encoder.unit e cur i))
+    else
+      match (nextToken inner (fun rest _ x => .yield rest x) (fun _ => .done) : Step ι σ σ) with
+      | .yield rest x => loop e rest x 0 (Encoder.length e x) c
+      | .error _ | .done => pure c
+
+/--
+The loop behind `for` loops and the `Std.Iterators` consumers on encoding iterators. Logically it
+is `Std.IteratorLoop.defaultImplementation`, which steps the iterator one token at a time; it is
+implemented by reading the input iterator directly.
+-/
+@[implemented_by forInImpl]
+public def forIn {n : Type x → Type x'} [Monad n] [Iterators.Productive ι Id]
+    (lift : (γ : Type) → (δ : Type x) → (γ → n δ) → Id γ → n δ) (γ : Type x)
+    (Pl : τ → γ → ForInStep γ → Prop) (it : IterM (α := EncodeIterator ε ι) Id τ) (init : γ)
+    (f : (b : τ) → it.IsPlausibleIndirectOutput b → (c : γ) → n (Subtype (Pl b c))) : n γ :=
+  IteratorLoop.defaultImplementation.forIn lift γ Pl it init f
+
+public instance {n : Type x → Type x'} [Monad n] [Iterators.Productive ι Id] :
+    IteratorLoop (EncodeIterator ε ι) Id n where
+  forIn := forIn
+
+public instance {n : Type x → Type x'} [Monad n] [Iterators.Productive ι Id] :
+    LawfulIteratorLoop (EncodeIterator ε ι) Id n where
+  lawful _ _ _ _ _ _ _ _ := rfl
 
 /-- The input iterator, after the token whose encoding is being yielded. -/
 @[inline]
