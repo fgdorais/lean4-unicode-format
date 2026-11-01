@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
+public import UnicodeFormat.Basic
 public import UnicodeFormat.UTF16
 public import UnicodeFormat.UTF32
 import ScalarArray.Bytes
@@ -25,14 +26,6 @@ replaces the incomplete code unit at the end with U+FFFD.
 open ScalarArray
 
 namespace Unicode
-
-/-- The order of the bytes of a code unit wider than a byte. -/
-public inductive ByteOrder where
-  /-- Big-endian: the most significant byte first. -/
-  | big
-  /-- Little-endian: the least significant byte first. -/
-  | little
-  deriving Inhabited, DecidableEq, Repr
 
 /-- A Unicode encoding scheme. -/
 public inductive EncodingScheme where

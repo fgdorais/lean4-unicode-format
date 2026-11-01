@@ -7,3 +7,4 @@ module
 public import UnicodeFormat.UTF16
 public import UnicodeFormat.UTF32
 public import UnicodeFormat.EncodingScheme
+public import UnicodeFormat.Iterator
