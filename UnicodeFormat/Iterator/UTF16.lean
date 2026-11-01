@@ -23,13 +23,13 @@ public structure UTF16 where
 
 namespace UTF16
 
+variable {ι : Type} [Iterator ι Id UInt16] [Iterators.Productive ι Id]
+
 /-- Whether `u` is a high surrogate, the first code unit of a pair. -/
 @[inline] private def isHigh (u : UInt16) : Bool := u &&& 0xFC00 == 0xD800
 
 /-- Whether `u` is a low surrogate, the second code unit of a pair. -/
 @[inline] private def isLow (u : UInt16) : Bool := u &&& 0xFC00 == 0xDC00
-
-variable {ι : Type} [Iterator ι Id UInt16] [Iterators.Productive ι Id]
 
 /--
 Decodes one character from the UTF-16 code units of `it`. Calls `yield` with the character and the

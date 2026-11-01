@@ -52,7 +52,8 @@ public def byte16 (o : ByteOrder) (u : UInt16) (i : Nat) : UInt8 :=
 public def byte32 (o : ByteOrder) (u : UInt32) (i : Nat) : UInt8 :=
   (u >>> (o.shift 4 i).toUInt32).toUInt8
 
-section
+section Read
+
 variable {ι : Type} [Iterator ι Id UInt8] [Iterators.Productive ι Id]
 
 /--
@@ -99,7 +100,7 @@ public def readUInt32 {β : Type} (o : ByteOrder) (it : Iter (α := ι) UInt8)
       (fun _ => error .incompleteCodeUnit r₁ h₁))
     done
 
-end
+end Read
 
 end ByteOrder
 
@@ -163,6 +164,8 @@ public def encodeIter32 (o : ByteOrder) (it : Iter (α := ι) UInt32) :
     Iter (α := EncodeIterator Bytes32 ι) UInt8 :=
   Encoder.iter ⟨o⟩ it
 
+section BOM
+
 variable [Iterator ι Id UInt8] [Iterators.Productive ι Id]
 
 /-- The byte order given by the UTF-16 byte order mark at `it`, or `o` if there is none, and the
@@ -192,6 +195,8 @@ public def readBOM32 (o : ByteOrder) (it : Iter (α := ι) UInt8) :
         (fun _ => (o, it)))
       (fun _ => (o, it)))
     (fun _ => (o, it))
+
+end BOM
 
 end ByteOrder
 
