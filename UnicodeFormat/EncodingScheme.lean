@@ -31,6 +31,9 @@ signature.
 
 `detect?` finds the scheme of bytes that start with a byte order mark or signature, and `name` and
 `ofName?` convert to and from the IANA charset names of the schemes.
+
+For streaming, `UnicodeFormat.Iterator.EncodingScheme` makes each scheme a decoder and an encoder
+between bytes and characters, with `decodeIter` and `encodeIter`.
 -/
 
 open ScalarArray

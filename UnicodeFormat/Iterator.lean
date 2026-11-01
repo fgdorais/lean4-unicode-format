@@ -9,3 +9,4 @@ public import UnicodeFormat.Iterator.UTF16
 public import UnicodeFormat.Iterator.UTF32
 public import UnicodeFormat.Iterator.UTF8
 public import UnicodeFormat.Iterator.Bytes
+public import UnicodeFormat.Iterator.EncodingScheme

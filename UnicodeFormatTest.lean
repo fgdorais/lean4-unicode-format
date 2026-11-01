@@ -259,6 +259,32 @@ def badUTF8 : List (List UInt8 × String) :=
   let (cs, it) := run (UTF8.decodeIter [0x61, 0xE2, 0x88, 0x61].toUInt8Array.iter)
   cs == #['a'] && idx8 it.decodeBase == 1
 
+/-! Encoding scheme iterators -/
+
+#guard schemes.all fun e => samples.all fun s =>
+  str (e.decodeIter (e.encode s).toUInt8Array.iter) == s
+#guard schemes.all fun e => samples.all fun s =>
+  stopError? (e.decodeIter (e.encode s).toUInt8Array.iter) == none
+#guard schemes.all fun e => samples.all fun s =>
+  (e.encodeIter s.chars).toList == (e.encode s).toList
+#guard badBytes.all fun (e, b, s) => str (e.decodeIterLossy b.toUInt8Array.iter) == s
+#guard badUTF8.all fun (b, s) => str (utf8.decodeIterLossy b.toUInt8Array.iter) == s
+-- Strict decoding stops where `decode` reports the error, with the same kind.
+#guard badBytes.all fun (e, b, _) =>
+  let (_, it) := run (e.decodeIter b.toUInt8Array.iter)
+  match e.decode b.toByteArray with
+  | .error err => it.decodeError? == some err.kind && idx8 it.decodeBase == err.pos
+  | .ok _ => false
+-- The byte order mark tells the byte order; without one, it is the default.
+#guard str ((utf16 .big).decodeIter [0xFF, 0xFE, 0x61, 0x00].toUInt8Array.iter) == "a"
+#guard str ((utf16 .little).decodeIter [0x61, 0x00].toUInt8Array.iter) == "a"
+#guard str (utf32.decodeIter [0xFF, 0xFE, 0, 0, 0x61, 0, 0, 0].toUInt8Array.iter) == "a"
+-- In the schemes without a mark, a leading U+FEFF is a character.
+#guard str (utf16BE.decodeIter [0xFE, 0xFF, 0x00, 0x61].toUInt8Array.iter) == "\uFEFFa"
+-- An unpaired high surrogate before an incomplete code unit: two errors, as in `decodeLossy`.
+#guard str (utf16LE.decodeIterLossy [0x3D, 0xD8, 0x61].toUInt8Array.iter) == "\uFFFD\uFFFD"
+#guard (utf16LE.decodeLossy [0x3D, 0xD8, 0x61].toByteArray) == "\uFFFD\uFFFD"
+
 /-! Decoding over an iterator that skips -/
 
 -- `filter` skips, so decoding goes through the loop of `nextToken` over `skip` steps.
