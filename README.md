@@ -14,9 +14,9 @@ from its byte order mark, and converts to and from IANA charset names.
 
 The same conversions are also iterator transformers over pure `Std.Iter` iterators, for streaming
 and parsing: `UTF8.decodeIter`, `UTF16.decodeIter` and `UTF32.decodeIter` decode code units to
-characters and `encodeIter` encodes them back, `ByteOrder.decodeIter16` and its relatives convert
-between bytes and code units, and a strict decoder stops at the first ill-formed input with the
-error and its position.
+characters and `encodeIter` encodes them back, `EncodingScheme.decodeIter` and `encodeIter` do the
+same for the bytes of an encoding scheme, including its byte order mark, and a strict decoder stops
+at the first ill-formed input with the error and its position.
 
 ## Installation
 
@@ -60,6 +60,7 @@ open Unicode
 
 -- Decoding iterators, for streaming and parsing.
 #eval (UTF8.decodeIter "añb".toUTF8.toUInt8Array.iter).toList     -- ['a', 'ñ', 'b']
+#eval (EncodingScheme.utf16.decodeIter [0xFF, 0xFE, 0x68, 0x00].toUInt8Array.iter).toList -- ['h']
 ```
 
 ## Documentation

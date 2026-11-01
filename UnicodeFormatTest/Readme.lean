@@ -18,3 +18,4 @@ open Unicode
 #guard ((EncodingScheme.ofName? "utf-16le").map (·.encode "hi")).map ByteArray.toList ==
   some [104, 0, 105, 0]
 #guard (UTF8.decodeIter "añb".toUTF8.toUInt8Array.iter).toList == ['a', 'ñ', 'b']
+#guard (EncodingScheme.utf16.decodeIter [0xFF, 0xFE, 0x68, 0x00].toUInt8Array.iter).toList == ['h']
