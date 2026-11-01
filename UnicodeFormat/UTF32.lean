@@ -27,12 +27,37 @@ public def encodeChar (c : Char) : UInt32Array := UInt32Array.mk #[c.val]
 /-- The UTF-32 encoding of `s`. -/
 public def encode (s : String) : UInt32Array := (s.chars.map Char.val).toUInt32Array
 
+/-- One decoding step, with the proof that it advances. -/
+private inductive Step (it : Iter (α := UInt32Array.SliceIterator) UInt32) where
+  | yield (rest : Iter (α := UInt32Array.SliceIterator) UInt32) (h : Advanced rest it) (c : Char)
+  | error (kind : DecodeError.Kind) (rest : Iter (α := UInt32Array.SliceIterator) UInt32)
+  | done
+
+/--
+Folds `f` over the characters of `it` up to the first ill-formed code unit, and returns the result
+with the kind of error and the iterator after that code unit, if any. Unlike
+`Decoder.foldUntilError`, which returns the iterator at the ill-formed input, it does not keep the
+iterator before each step, so the compiler updates it in place. The ill-formed input is always one
+code unit, so the iterator after it tells where it is.
+-/
+@[specialize]
+private def foldUntilError {γ : Type} (f : γ → Char → γ) (acc : γ)
+    (it : Iter (α := UInt32Array.SliceIterator) UInt32) :
+    γ × Option (DecodeError.Kind × Iter (α := UInt32Array.SliceIterator) UInt32) :=
+  match (decodeChar it (fun rest h c => .yield rest h c) (fun k rest _ => .error k rest)
+      (fun _ => .done) : Step it) with
+  | .yield rest _ c => foldUntilError f (f acc c) rest
+  | .error k rest => (acc, some (k, rest))
+  | .done => (acc, none)
+termination_by it.finitelyManySteps
+decreasing_by assumption
+
 /-- Decodes the UTF-32 code units of `s`, or returns an error with the index in `s` of the first
 code unit that is not a scalar value. -/
 public def decode (s : UInt32Array.Slice) : Except DecodeError String :=
-  match Decoder.foldUntilError ({} : UTF32) String.push "" s.iter with
+  match foldUntilError String.push "" s.iter with
   | (r, none) => .ok r
-  | (_, some (k, it)) => .error ⟨k, it.toUInt32Slice.start - s.start⟩
+  | (_, some (k, it)) => .error ⟨k, it.toUInt32Slice.start - 1 - s.start⟩
 
 /-- Decodes the UTF-32 code units of `s`, or returns `none` if `s` has a code unit that is not a
 Unicode scalar value. -/

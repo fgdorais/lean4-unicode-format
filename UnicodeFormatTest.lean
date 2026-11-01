@@ -479,6 +479,10 @@ def err? {α : Type} : Except DecodeError α → Option DecodeError
 #guard err? (UTF16.decode ([0x61, 0x62, 0xDC00].toUInt16Array[1...*])) ==
   some ⟨.unpairedSurrogate, 1⟩
 #guard err? (UTF32.decode [0x61, 0x62, 0x110000].toUInt32Array) == some ⟨.notScalarValue, 2⟩
+#guard err? (UTF16.decode [0x61, 0xD83D].toUInt16Array) == some ⟨.unpairedSurrogate, 1⟩
+#guard err? (UTF32.decode [0xD800, 0x61].toUInt32Array) == some ⟨.notScalarValue, 0⟩
+#guard !UTF16.validate [0x61, 0xD83D].toUInt16Array && !UTF16.validate [0xDC00].toUInt16Array
+#guard UTF16.validate [0x61, 0xD83D, 0xDE00].toUInt16Array
 #guard samples.all fun s => err? (UTF16.decode (UTF16.encode s)) == none
 #guard samples.all fun s => err? (UTF32.decode (UTF32.encode s)) == none
 
