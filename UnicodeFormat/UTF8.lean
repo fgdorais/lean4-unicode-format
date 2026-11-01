@@ -22,6 +22,10 @@ open ScalarArray Std
 
 namespace Unicode.UTF8
 
+/-- The UTF-8 bytes of `c`, one to four of them. -/
+public def encodeChar (c : Char) : UInt8Array :=
+  UInt8Array.ofFn (n := c.utf8Size) fun i => Encoder.unit ({} : UTF8) c i
+
 /-- The UTF-8 encoding of `s`. -/
 public def encode (s : String) : ByteArray := s.toUTF8
 

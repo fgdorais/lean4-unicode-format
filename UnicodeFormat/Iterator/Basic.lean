@@ -18,7 +18,8 @@ looks ahead by stepping copies of `it`, so it needs no buffer. `DecodeIterator �
 an iterator of type `ι`. A strict decoding iterator stops at ill-formed input, where
 `it.decodeError?` tells why, `it.decodeFailure?` finds the first ill-formed input ahead, and
 `it.decodeContinue?` goes on after it; a lossy one yields `Decoder.replacement d` instead and goes on
-after the ill-formed input.
+after the ill-formed input. `it.decodeFold` folds over the tokens and returns the iterator where
+decoding stopped.
 `DecodeError.Kind` and `DecodeError` have `ToString` instances for error messages.
 
 An *encoder* `e : ε` with `[Encoder ε σ τ]` gives the tokens of type `τ` that encode a token of
@@ -122,9 +123,12 @@ public structure DecodeError where
   pos : Nat
   deriving Inhabited, DecidableEq, Repr
 
-/-- A description of the error `e` for error messages, such as `unpaired surrogate at index 2`. -/
+/--
+A description of the error `e` for error messages, such as `unpaired surrogate at offset 2`. The
+offset is `e.pos`, in code units or bytes as the decoding function tells.
+-/
 public def DecodeError.toString (e : DecodeError) : String :=
-  s!"{e.kind} at index {e.pos}"
+  s!"{e.kind} at offset {e.pos}"
 
 public instance : ToString DecodeError := ⟨DecodeError.toString⟩
 
@@ -280,8 +284,9 @@ end DecodeIterator
 Decodes the tokens of `it` with `d`, stopping at the first ill-formed input.
 
 A `for` loop or fold over the result ends at ill-formed input just as at the end of the input. To
-tell them apart, check `it.decodeError?` on the iterator where decoding stopped, find the first
-ill-formed input ahead with `it.decodeFailure?`, or decode with `Decoder.iterLossy` instead.
+tell them apart, fold with `decodeFold`, which also returns the iterator where decoding stopped, and
+check `decodeError?` there, find the first ill-formed input ahead with `decodeFailure?`, or decode
+with `Decoder.iterLossy` instead.
 -/
 @[inline]
 public def Decoder.iter {δ ι τ σ : Type} [Decoder δ τ σ] (d : δ) (it : Iter (α := ι) τ) :
@@ -347,6 +352,31 @@ public def _root_.Std.Iter.decodeFailure? (it : Iter (α := DecodeIterator δ ι
   match Decoder.foldUntilError s.decoder (fun _ _ => ()) () s.inner with
   | (_, some (k, base)) => some (k, ⟨⟨s.decoder, s.lossy, base⟩⟩)
   | (_, none) => none
+
+/-- The loop of `decodeFold`, over the input iterator. -/
+@[specialize]
+private def decodeFoldLoop {γ : Type} (d : δ) (lossy : Bool) (f : γ → σ → γ) (acc : γ)
+    (inner : Iter (α := ι) τ) : γ × Iter (α := DecodeIterator δ ι) σ :=
+  match (Decoder.decode d inner (fun rest h x => .yield rest h x) (fun k rest h => .error k rest h)
+      (fun _ => .done) : DecodeStep inner σ) with
+  | .yield rest _ x => decodeFoldLoop d lossy f (f acc x) rest
+  | .error _ rest _ =>
+    if lossy then decodeFoldLoop d lossy f (f acc (Decoder.replacement d)) rest
+    else (acc, ⟨⟨d, lossy, inner⟩⟩)
+  | .done => (acc, ⟨⟨d, lossy, inner⟩⟩)
+termination_by inner.finitelyManySteps
+decreasing_by all_goals assumption
+
+/--
+Folds `f` over the tokens of `it` from `init`, and returns the result with the iterator where
+decoding stopped: at the end of the input, or for a strict decoding iterator at ill-formed input.
+There, `decodeError?` tells why and `decodeContinue?` goes on after it. A `for` loop or `fold`
+gives the result alone.
+-/
+@[inline]
+public def _root_.Std.Iter.decodeFold {γ : Type} (f : γ → σ → γ) (init : γ)
+    (it : Iter (α := DecodeIterator δ ι) σ) : γ × Iter (α := DecodeIterator δ ι) σ :=
+  decodeFoldLoop it.internalState.decoder it.internalState.lossy f init it.internalState.inner
 
 end Failure
 

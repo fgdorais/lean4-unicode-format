@@ -129,8 +129,9 @@ Decodes the bytes of `it` as UTF-16 code units in byte order `o`, stopping at an
 unit.
 
 A `for` loop or fold over the result ends at ill-formed input just as at the end of the input. To
-tell them apart, check `it.decodeError?` on the iterator where decoding stopped, find the first
-ill-formed input ahead with `it.decodeFailure?`, or decode with `decodeIter16Lossy` instead.
+tell them apart, fold with `decodeFold`, which also returns the iterator where decoding stopped, and
+check `decodeError?` there, find the first ill-formed input ahead with `decodeFailure?`, or decode
+with `decodeIter16Lossy` instead.
 -/
 @[inline]
 public def decodeIter16 (o : ByteOrder) (it : Iter (α := ι) UInt8) :
@@ -155,8 +156,9 @@ Decodes the bytes of `it` as UTF-32 code units in byte order `o`, stopping at an
 unit.
 
 A `for` loop or fold over the result ends at ill-formed input just as at the end of the input. To
-tell them apart, check `it.decodeError?` on the iterator where decoding stopped, find the first
-ill-formed input ahead with `it.decodeFailure?`, or decode with `decodeIter32Lossy` instead.
+tell them apart, fold with `decodeFold`, which also returns the iterator where decoding stopped, and
+check `decodeError?` there, find the first ill-formed input ahead with `decodeFailure?`, or decode
+with `decodeIter32Lossy` instead.
 -/
 @[inline]
 public def decodeIter32 (o : ByteOrder) (it : Iter (α := ι) UInt8) :
