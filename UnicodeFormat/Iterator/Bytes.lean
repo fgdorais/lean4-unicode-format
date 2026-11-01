@@ -9,9 +9,10 @@ public import UnicodeFormat.Iterator.Basic
 /-! # Byte order iterators
 
 The encoding schemes UTF-16BE, UTF-16LE, UTF-32BE and UTF-32LE serialize code units as bytes.
-`ByteOrder.decode16` reads UTF-16 code units from bytes and `ByteOrder.encode16` writes them, and
-likewise `decode32` and `encode32` for UTF-32. Bytes that end in the middle of a code unit are
-ill-formed; lossy decoding replaces that code unit with 0xFFFD, which decodes to U+FFFD.
+`ByteOrder.decodeIter16` reads UTF-16 code units from bytes and `ByteOrder.encodeIter16` writes
+them, and likewise `decodeIter32` and `encodeIter32` for UTF-32. Bytes that end in the middle of a
+code unit are ill-formed; lossy decoding replaces that code unit with 0xFFFD, which decodes to
+U+FFFD.
 
 The UTF-16 and UTF-32 schemes start with a byte order mark: `ByteOrder.readBOM16` and `readBOM32`
 read it, and give the byte order it tells and the iterator after it.
@@ -62,7 +63,7 @@ of the input, or `done` at the end of the input.
 @[inline]
 public def readUInt16 {β : Type} (o : ByteOrder) (it : Iter (α := ι) UInt8)
     (yield : (rest : Iter (α := ι) UInt8) → Advanced rest it → UInt16 → β)
-    (error : DecodeError → (rest : Iter (α := ι) UInt8) → Advanced rest it → β)
+    (error : DecodeError.Kind → (rest : Iter (α := ι) UInt8) → Advanced rest it → β)
     (done : Unit → β) : β :=
   nextToken it (fun r₁ h₁ b₀ =>
     nextToken r₁
@@ -81,7 +82,7 @@ of the input, or `done` at the end of the input.
 @[inline]
 public def readUInt32 {β : Type} (o : ByteOrder) (it : Iter (α := ι) UInt8)
     (yield : (rest : Iter (α := ι) UInt8) → Advanced rest it → UInt32 → β)
-    (error : DecodeError → (rest : Iter (α := ι) UInt8) → Advanced rest it → β)
+    (error : DecodeError.Kind → (rest : Iter (α := ι) UInt8) → Advanced rest it → β)
     (done : Unit → β) : β :=
   nextToken it (fun r₁ h₁ b₀ =>
     nextToken r₁ (fun r₂ h₂ b₁ =>
@@ -125,40 +126,40 @@ variable {ι : Type}
 /-- Decodes the bytes of `it` as UTF-16 code units in byte order `o`, stopping at an incomplete
 code unit. -/
 @[inline]
-public def decode16 (o : ByteOrder) (it : Iter (α := ι) UInt8) :
+public def decodeIter16 (o : ByteOrder) (it : Iter (α := ι) UInt8) :
     Iter (α := DecodeIterator Bytes16 ι) UInt16 :=
   Decoder.iter ⟨o⟩ it
 
 /-- Decodes the bytes of `it` as UTF-16 code units in byte order `o`, replacing an incomplete code
 unit with 0xFFFD. -/
 @[inline]
-public def decode16Lossy (o : ByteOrder) (it : Iter (α := ι) UInt8) :
+public def decodeIter16Lossy (o : ByteOrder) (it : Iter (α := ι) UInt8) :
     Iter (α := DecodeIterator Bytes16 ι) UInt16 :=
   Decoder.iterLossy ⟨o⟩ it
 
 /-- Encodes the UTF-16 code units of `it` as bytes in byte order `o`. -/
 @[inline]
-public def encode16 (o : ByteOrder) (it : Iter (α := ι) UInt16) :
+public def encodeIter16 (o : ByteOrder) (it : Iter (α := ι) UInt16) :
     Iter (α := EncodeIterator Bytes16 ι) UInt8 :=
   Encoder.iter ⟨o⟩ it
 
 /-- Decodes the bytes of `it` as UTF-32 code units in byte order `o`, stopping at an incomplete
 code unit. -/
 @[inline]
-public def decode32 (o : ByteOrder) (it : Iter (α := ι) UInt8) :
+public def decodeIter32 (o : ByteOrder) (it : Iter (α := ι) UInt8) :
     Iter (α := DecodeIterator Bytes32 ι) UInt32 :=
   Decoder.iter ⟨o⟩ it
 
 /-- Decodes the bytes of `it` as UTF-32 code units in byte order `o`, replacing an incomplete code
 unit with 0xFFFD. -/
 @[inline]
-public def decode32Lossy (o : ByteOrder) (it : Iter (α := ι) UInt8) :
+public def decodeIter32Lossy (o : ByteOrder) (it : Iter (α := ι) UInt8) :
     Iter (α := DecodeIterator Bytes32 ι) UInt32 :=
   Decoder.iterLossy ⟨o⟩ it
 
 /-- Encodes the UTF-32 code units of `it` as bytes in byte order `o`. -/
 @[inline]
-public def encode32 (o : ByteOrder) (it : Iter (α := ι) UInt32) :
+public def encodeIter32 (o : ByteOrder) (it : Iter (α := ι) UInt32) :
     Iter (α := EncodeIterator Bytes32 ι) UInt8 :=
   Encoder.iter ⟨o⟩ it
 

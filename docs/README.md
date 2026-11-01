@@ -1,16 +1,21 @@
 # Lean 4 / Unicode Format
 
-UTF-16 and UTF-32 encoding and decoding of Lean strings, stored in the unboxed `UInt16Array` and
-`UInt32Array` of [lean4-scalar-arrays](https://github.com/fgdorais/lean4-scalar-arrays). Decoding
-is either strict, failing on ill-formed input, or lossy, replacing it with U+FFFD.
+UTF-8, UTF-16 and UTF-32 encoding and decoding of Lean strings, with the code units of UTF-16 and
+UTF-32 stored in the unboxed `UInt16Array` and `UInt32Array` of
+[lean4-scalar-arrays](https://github.com/fgdorais/lean4-scalar-arrays). `Unicode.UTF8`,
+`Unicode.UTF16` and `Unicode.UTF32` each provide `encode`, `decode`, `decode?`, `decode!`,
+`decodeLossy` and `validate`. Decoding is either strict, failing on ill-formed input with its
+position, or lossy, replacing it with U+FFFD.
 
 The Unicode encoding schemes serialize these as bytes: UTF-8, UTF-16BE, UTF-16LE, UTF-32BE and
 UTF-32LE, the UTF-16 and UTF-32 schemes with a byte order mark, and UTF-8 with a signature.
-`Unicode.EncodingScheme` encodes, decodes, validates and converts between them.
+`Unicode.EncodingScheme` encodes, decodes, validates and converts between them, detects a scheme
+from its byte order mark, and converts to and from IANA charset names.
 
 The same conversions are also iterator transformers over pure `Std.Iter` iterators, for streaming
-and parsing: `UTF8`, `UTF16` and `UTF32` decode code units to characters and encode them back,
-`ByteOrder` converts between bytes and code units, and a strict decoder stops at the first
+and parsing: `UTF8.decodeIter`, `UTF16.decodeIter` and `UTF32.decodeIter` decode code units to
+characters and `encodeIter` encodes them back, `ByteOrder.decodeIter16` and its relatives convert
+between bytes and code units, and a strict decoder stops at the first
 ill-formed input with the error and its position.
 
 ## Installation

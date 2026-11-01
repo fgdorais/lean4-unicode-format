@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import ScalarArray.UInt16
+public import UnicodeFormat.Iterator.UTF16
 
 /-!
 # UTF-16
@@ -13,20 +14,17 @@ A code point below U+10000 is a single code unit. A code point from U+10000 to U
 surrogate pair: a high surrogate in D800–DBFF carrying the top ten bits of `c - 0x10000`, then a
 low surrogate in DC00–DFFF carrying the bottom ten bits. A surrogate that is not part of such a
 pair is ill-formed.
+
+Decoding goes through `UTF16.decodeIter`; `decode` reports the position of the first unpaired
+surrogate, as an index in the slice.
 -/
 
-open ScalarArray
+open ScalarArray Std
 
-namespace Unicode
-
-/-- Whether `u` is a high surrogate, the first code unit of a pair. -/
-@[inline] private def isHigh (u : UInt16) : Bool := u &&& 0xFC00 == 0xD800
-
-/-- Whether `u` is a low surrogate, the second code unit of a pair. -/
-@[inline] private def isLow (u : UInt16) : Bool := u &&& 0xFC00 == 0xDC00
+namespace Unicode.UTF16
 
 /-- Appends the UTF-16 encoding of `c`. -/
-@[inline] private def pushUTF16 (a : UInt16Array) (c : Char) : UInt16Array :=
+@[inline] private def push (a : UInt16Array) (c : Char) : UInt16Array :=
   if c.val < 0x10000 then
     a.push c.val.toUInt16
   else
@@ -34,52 +32,32 @@ namespace Unicode
     (a.push ((v >>> 10).toUInt16 + 0xD800)).push ((v &&& 0x3FF).toUInt16 + 0xDC00)
 
 /-- The UTF-16 encoding of `s`. -/
-public def toUTF16 (s : String) : UInt16Array :=
+public def encode (s : String) : UInt16Array :=
   -- A character takes at least as many UTF-8 bytes as UTF-16 code units.
-  s.chars.fold pushUTF16 (.emptyWithCapacity s.utf8ByteSize)
+  s.chars.fold push (.emptyWithCapacity s.utf8ByteSize)
 
-/-- Decodes UTF-16, running `bad` for each ill-formed code unit. -/
-@[specialize] private def decodeUTF16 [Monad m] (s : UInt16Array.Slice) (bad : m Char) :
-    m String := do
-  let mut r := ""
-  -- The high surrogate waiting for its low surrogate.
-  let mut hi : Option UInt16 := none
-  for u in s do
-    if let some h := hi then
-      hi := none
-      if isLow u then
-        r := r.push (Char.ofNat (0x10000 + (h.toNat &&& 0x3FF) * 0x400 + (u.toNat &&& 0x3FF)))
-        continue
-      r := r.push (← bad)
-    if isHigh u then
-      hi := some u
-    else
-      r := r.push (← if isLow u then bad else pure (Char.ofNat u.toNat))
-  if hi.isSome then
-    r := r.push (← bad)
-  return r
+/-- Decodes the UTF-16 code units of `s`, or returns the first unpaired surrogate and its index
+in `s`. -/
+public def decode (s : UInt16Array.Slice) : Except DecodeError String :=
+  match Decoder.foldUntilError ({} : UTF16) String.push "" s.iter with
+  | (r, none) => .ok r
+  | (_, some (k, it)) => .error ⟨k, it.internalState.xs.start - s.start⟩
 
-/-- Decodes UTF-16, or returns `none` if `s` has an unpaired surrogate. -/
-public def fromUTF16? (s : UInt16Array.Slice) : Option String := decodeUTF16 s none
+/-- Decodes the UTF-16 code units of `s`, or returns `none` if `s` has an unpaired surrogate. -/
+public def decode? (s : UInt16Array.Slice) : Option String := (decode s).toOption
 
-/-- Decodes UTF-16, panicking if `s` has an unpaired surrogate. -/
-public def fromUTF16! (s : UInt16Array.Slice) : String :=
-  match fromUTF16? s with
-  | some r => r
-  | none => panic! "invalid UTF-16 string"
+/-- Decodes the UTF-16 code units of `s`, panicking if `s` has an unpaired surrogate. -/
+public def decode! (s : UInt16Array.Slice) : String :=
+  match decode s with
+  | .ok r => r
+  | .error _ => panic! "invalid UTF-16 string"
 
-/-- Decodes UTF-16, replacing each unpaired surrogate with U+FFFD. -/
-public def fromUTF16Lossy (s : UInt16Array.Slice) : String :=
-  Id.run <| decodeUTF16 s (pure '\uFFFD')
+/-- Decodes the UTF-16 code units of `s`, replacing each unpaired surrogate with U+FFFD. -/
+public def decodeLossy (s : UInt16Array.Slice) : String :=
+  Decoder.foldLossy ({} : UTF16) String.push "" s.iter
 
 /-- Whether `s` is well-formed UTF-16, that is, has no unpaired surrogate. -/
-public def validateUTF16 (s : UInt16Array.Slice) : Bool := Id.run do
-  -- Whether the previous code unit is a high surrogate.
-  let mut hi := false
-  for u in s do
-    if hi != isLow u then
-      return false
-    hi := isHigh u
-  return !hi
+public def validate (s : UInt16Array.Slice) : Bool :=
+  (Decoder.foldUntilError ({} : UTF16) (fun _ _ => ()) () s.iter).2.isNone
 
-end Unicode
+end Unicode.UTF16
