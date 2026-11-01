@@ -68,7 +68,14 @@ public instance : Encoder UTF16 Char UInt16 where
     else if i = 0 then ((c.val - 0x10000) >>> 10).toUInt16 + 0xD800
     else ((c.val - 0x10000) &&& 0x3FF).toUInt16 + 0xDC00
 
-/-- Decodes the UTF-16 code units of `it`, stopping at the first unpaired surrogate. -/
+/--
+Decodes the UTF-16 code units of `it`, stopping at the first unpaired surrogate.
+
+A `for` loop or fold over the result ends at ill-formed input just as at the end of the input. To
+tell them apart, check `it.decodeError?` on the iterator where decoding stopped, use
+`Decoder.foldUntilError`, which returns the error and where it is, or decode with `decodeIterLossy`
+instead.
+-/
 @[inline]
 public def decodeIter (it : Iter (α := ι) UInt16) : Iter (α := DecodeIterator UTF16 ι) Char :=
   Decoder.iter {} it

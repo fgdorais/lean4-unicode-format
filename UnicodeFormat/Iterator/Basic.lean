@@ -228,7 +228,14 @@ public def _root_.Std.Iter.decodeError? (it : Iter (α := DecodeIterator δ ι) 
 
 end DecodeIterator
 
-/-- Decodes the tokens of `it` with `d`, stopping at the first ill-formed input. -/
+/--
+Decodes the tokens of `it` with `d`, stopping at the first ill-formed input.
+
+A `for` loop or fold over the result ends at ill-formed input just as at the end of the input. To
+tell them apart, check `it.decodeError?` on the iterator where decoding stopped, use
+`Decoder.foldUntilError`, which returns the error and where it is, or decode with
+`Decoder.iterLossy` instead.
+-/
 @[inline]
 public def Decoder.iter {δ ι τ σ : Type} [Decoder δ τ σ] (d : δ) (it : Iter (α := ι) τ) :
     Iter (α := DecodeIterator δ ι) σ :=
