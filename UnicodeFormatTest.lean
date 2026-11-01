@@ -285,13 +285,20 @@ def badUTF8 : List (List UInt8 × String) :=
 #guard str (utf16LE.decodeIterLossy [0x3D, 0xD8, 0x61].toUInt8Array.iter) == "\uFFFD\uFFFD"
 #guard (utf16LE.decodeLossy [0x3D, 0xD8, 0x61].toByteArray) == "\uFFFD\uFFFD"
 
+/-! The code units of one character -/
+
+#guard samples.all fun s => s.toList.all fun c =>
+  (UTF8.encodeChar c).toList == (UTF8.encode c.toString).toList &&
+  (UTF16.encodeChar c).toList == (UTF16.encode c.toString).toList &&
+  (UTF32.encodeChar c).toList == (UTF32.encode c.toString).toList
+#guard (UTF16.encodeChar '😀').toList == [0xD83D, 0xDE00]
+
 /-! Going on after ill-formed input -/
 
 /-- Strict decoding that goes on after each ill-formed input with U+FFFD. -/
-partial def recover {δ ι τ : Type} [Decoder δ τ Char] [Iterator ι Id τ] [Iterators.Productive ι Id]
+partial def recover {δ ι τ : Type} [Decoder δ τ Char] [Iterator ι Id τ] [Iterators.Finite ι Id]
     (it : Iter (α := DecodeIterator δ ι) Char) (acc : String := "") : String :=
-  let (cs, stop) := run it
-  let acc := cs.foldl String.push acc
+  let (acc, stop) := it.decodeFold String.push acc
   match stop.decodeContinue? with
   | some (_, ⟨next, _⟩) => recover next (acc.push '\uFFFD')
   | none => acc
@@ -310,6 +317,28 @@ partial def recover {δ ι τ : Type} [Decoder δ τ Char] [Iterator ι Id τ] [
   | some (k, ⟨next, _⟩) =>
     k == .illFormedUTF8 && idx8 next.decodeBase == 3 && !next.decodeIsLossy && str next == "b"
   | none => false
+
+/-! Folding up to where decoding stops -/
+
+-- The same result and stop as stepping by hand.
+#guard badUTF8.all fun (b, _) =>
+  let it := UTF8.decodeIter b.toUInt8Array.iter
+  let (s, stop) := it.decodeFold String.push ""
+  let (cs, stop') := run it
+  s == String.ofList cs.toList && idx8 stop.decodeBase == idx8 stop'.decodeBase &&
+    stop.decodeError? == stop'.decodeError?
+#guard badUTF16.all fun (a, _) =>
+  let it := UTF16.decodeIter a.toUInt16Array.iter
+  let (s, stop) := it.decodeFold String.push ""
+  let (cs, stop') := run it
+  s == String.ofList cs.toList && idx16 stop.decodeBase == idx16 stop'.decodeBase
+-- On well-formed input, and with lossy decoding, it stops at the end.
+#guard samples.all fun s =>
+  let (r, stop) := (UTF8.decodeIter s.toUTF8.toUInt8Array.iter).decodeFold String.push ""
+  r == s && idx8 stop.decodeBase == s.utf8ByteSize && stop.decodeError? == none
+#guard badBytes.all fun (e, b, s) =>
+  let (r, stop) := (e.decodeIterLossy b.toUInt8Array.iter).decodeFold String.push ""
+  r == s && idx8 stop.decodeBase == b.length
 
 /-! Decoding over an iterator that skips -/
 
@@ -443,9 +472,9 @@ def err? {α : Type} : Except DecodeError α → Option DecodeError
   some ⟨.unpairedSurrogate, 3⟩
 #guard toString DecodeError.Kind.illFormedUTF8 == "ill-formed UTF-8"
 #guard (err? (UTF16.decode [0x61, 0xD83D, 0x62].toUInt16Array)).map toString ==
-  some "unpaired surrogate at index 1"
+  some "unpaired surrogate at offset 1"
 #guard (err? (utf32LE.decode [0x61, 0, 0].toByteArray)).map toString ==
-  some "incomplete code unit at index 0"
+  some "incomplete code unit at offset 0"
 -- Positions are indices in the slice.
 #guard err? (UTF16.decode ([0x61, 0x62, 0xDC00].toUInt16Array[1...*])) ==
   some ⟨.unpairedSurrogate, 1⟩

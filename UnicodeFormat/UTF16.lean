@@ -31,6 +31,9 @@ namespace Unicode.UTF16
     let v := c.val - 0x10000
     (a.push ((v >>> 10).toUInt16 + 0xD800)).push ((v &&& 0x3FF).toUInt16 + 0xDC00)
 
+/-- The UTF-16 code units of `c`: one for a character of the BMP, two for a surrogate pair. -/
+public def encodeChar (c : Char) : UInt16Array := push (.emptyWithCapacity 2) c
+
 /-- The UTF-16 encoding of `s`. -/
 public def encode (s : String) : UInt16Array :=
   -- A character takes at least as many UTF-8 bytes as UTF-16 code units.

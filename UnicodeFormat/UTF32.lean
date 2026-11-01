@@ -21,6 +21,9 @@ open ScalarArray Std
 
 namespace Unicode.UTF32
 
+/-- The UTF-32 code unit of `c`, as a one-element array. -/
+public def encodeChar (c : Char) : UInt32Array := UInt32Array.mk #[c.val]
+
 /-- The UTF-32 encoding of `s`. -/
 public def encode (s : String) : UInt32Array := (s.chars.map Char.val).toUInt32Array
 

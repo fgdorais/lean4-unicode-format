@@ -138,8 +138,9 @@ or signature of `e` at the start is skipped, and for `utf16 o` and `utf32 o` the
 order; without one, the byte order is `o`.
 
 A `for` loop or fold over the result ends at ill-formed input just as at the end of the input. To
-tell them apart, check `it.decodeError?` on the iterator where decoding stopped, find the first
-ill-formed input ahead with `it.decodeFailure?`, or decode with `decodeIterLossy` instead.
+tell them apart, fold with `decodeFold`, which also returns the iterator where decoding stopped, and
+check `decodeError?` there, find the first ill-formed input ahead with `decodeFailure?`, or decode
+with `decodeIterLossy` instead.
 -/
 public def decodeIter (e : EncodingScheme) (it : Iter (α := ι) UInt8) :
     Iter (α := DecodeIterator EncodingScheme ι) Char :=
