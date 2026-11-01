@@ -259,6 +259,24 @@ def badUTF8 : List (List UInt8 × String) :=
   let (cs, it) := run (UTF8.decodeIter [0x61, 0xE2, 0x88, 0x61].toUInt8Array.iter)
   cs == #['a'] && idx8 it.decodeBase == 1
 
+/-! Finding ill-formed input ahead -/
+
+#guard samples.all fun s => (UTF8.decodeIter s.toUTF8.toUInt8Array.iter).decodeFailure?.isNone
+#guard
+  match (UTF8.decodeIter [0x61, 0xE2, 0x88, 0x61, 0x80].toUInt8Array.iter).decodeFailure? with
+  | some (k, it) => k == .illFormedUTF8 && idx8 it.decodeBase == 1 && !it.decodeIsLossy
+  | none => false
+-- From a lossy iterator, the first ill-formed input ahead, and the iterator there stays lossy.
+#guard
+  match (UTF16.decodeIterLossy [0x61, 0xD83D, 0xDE00, 0xDE00].toUInt16Array.iter).decodeFailure? with
+  | some (k, it) => k == .unpairedSurrogate && idx16 it.decodeBase == 3 && it.decodeIsLossy
+  | none => false
+-- The failure ahead is where a strict iterator stops.
+#guard badUTF16.all fun (a, _) =>
+  let it := UTF16.decodeIter a.toUInt16Array.iter
+  (it.decodeFailure?.map fun (k, f) => (k, idx16 f.decodeBase)) ==
+    some ((run it).2.decodeError?.get!, idx16 (run it).2.decodeBase)
+
 /-! Byte order iterators -/
 
 #guard samples.all fun s =>
@@ -362,6 +380,11 @@ def err? {α : Type} : Except DecodeError α → Option DecodeError
   some ⟨.unpairedSurrogate, 1⟩
 #guard err? (UTF16.decode [0x61, 0xD83D, 0xDE00, 0xDE00].toUInt16Array) ==
   some ⟨.unpairedSurrogate, 3⟩
+#guard toString DecodeError.Kind.illFormedUTF8 == "ill-formed UTF-8"
+#guard (err? (UTF16.decode [0x61, 0xD83D, 0x62].toUInt16Array)).map toString ==
+  some "unpaired surrogate at index 1"
+#guard (err? (utf32LE.decode [0x61, 0, 0].toByteArray)).map toString ==
+  some "incomplete code unit at index 0"
 -- Positions are indices in the slice.
 #guard err? (UTF16.decode ([0x61, 0x62, 0xDC00].toUInt16Array[1...*])) ==
   some ⟨.unpairedSurrogate, 1⟩

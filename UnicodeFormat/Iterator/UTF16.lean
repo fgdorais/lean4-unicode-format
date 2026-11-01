@@ -83,9 +83,8 @@ public instance : Encoder UTF16 Char UInt16 where
 Decodes the UTF-16 code units of `it`, stopping at the first unpaired surrogate.
 
 A `for` loop or fold over the result ends at ill-formed input just as at the end of the input. To
-tell them apart, check `it.decodeError?` on the iterator where decoding stopped, use
-`Decoder.foldUntilError`, which returns the error and where it is, or decode with `decodeIterLossy`
-instead.
+tell them apart, check `it.decodeError?` on the iterator where decoding stopped, find the first
+ill-formed input ahead with `it.decodeFailure?`, or decode with `decodeIterLossy` instead.
 -/
 @[inline]
 public def decodeIter (it : Iter (α := ι) UInt16) : Iter (α := DecodeIterator UTF16 ι) Char :=

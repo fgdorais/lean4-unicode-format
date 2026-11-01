@@ -116,9 +116,8 @@ variable {ι : Type}
 Decodes the UTF-8 bytes of `it`, stopping at the first ill-formed byte sequence.
 
 A `for` loop or fold over the result ends at ill-formed input just as at the end of the input. To
-tell them apart, check `it.decodeError?` on the iterator where decoding stopped, use
-`Decoder.foldUntilError`, which returns the error and where it is, or decode with `decodeIterLossy`
-instead.
+tell them apart, check `it.decodeError?` on the iterator where decoding stopped, find the first
+ill-formed input ahead with `it.decodeFailure?`, or decode with `decodeIterLossy` instead.
 -/
 @[inline]
 public def decodeIter (it : Iter (α := ι) UInt8) : Iter (α := DecodeIterator UTF8 ι) Char :=

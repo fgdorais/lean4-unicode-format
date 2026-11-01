@@ -16,8 +16,9 @@ at an iterator: `Decoder.decode d it` continues with the token and the iterator 
 `DecodeError.Kind` and the iterator after the ill-formed input, or with the end of the input. It
 looks ahead by stepping copies of `it`, so it needs no buffer. `DecodeIterator δ ι` repeats it over
 an iterator of type `ι`. A strict decoding iterator stops at ill-formed input, where
-`it.decodeError?` tells why; a lossy one yields `Decoder.replacement d` instead and goes on after
-the ill-formed input.
+`it.decodeError?` tells why, and `it.decodeFailure?` finds the first ill-formed input ahead; a lossy
+one yields `Decoder.replacement d` instead and goes on after the ill-formed input.
+`DecodeError.Kind` and `DecodeError` have `ToString` instances for error messages.
 
 An *encoder* `e : ε` with `[Encoder ε σ τ]` gives the tokens of type `τ` that encode a token of
 type `σ`, and `EncodeIterator ε ι` yields them for each token of an iterator of type `ι`.
@@ -92,6 +93,15 @@ public inductive DecodeError.Kind where
   | incompleteCodeUnit
   deriving Inhabited, DecidableEq, Repr
 
+/-- A description of ill-formed input of kind `k`, for error messages. -/
+public def DecodeError.Kind.toString : DecodeError.Kind → String
+  | .illFormedUTF8 => "ill-formed UTF-8"
+  | .unpairedSurrogate => "unpaired surrogate"
+  | .notScalarValue => "not a Unicode scalar value"
+  | .incompleteCodeUnit => "incomplete code unit"
+
+public instance : ToString DecodeError.Kind := ⟨DecodeError.Kind.toString⟩
+
 /--
 Ill-formed input: why, and where. The position is the index of the first token of the ill-formed
 input: of the code unit for UTF-16 and UTF-32, and of the byte for UTF-8 and the encoding schemes,
@@ -103,6 +113,12 @@ public structure DecodeError where
   /-- The index of the first token of the ill-formed input, in code units or bytes. -/
   pos : Nat
   deriving Inhabited, DecidableEq, Repr
+
+/-- A description of the error `e` for error messages, such as `unpaired surrogate at index 2`. -/
+public def DecodeError.toString (e : DecodeError) : String :=
+  s!"{e.kind} at index {e.pos}"
+
+public instance : ToString DecodeError := ⟨DecodeError.toString⟩
 
 /-- One step of reading a token, as data, so that a loop over it is a self tail call. -/
 private inductive Step (ι τ σ : Type) where
@@ -230,15 +246,19 @@ public def _root_.Std.Iter.decodeError? (it : Iter (α := DecodeIterator δ ι) 
   Decoder.decode it.internalState.decoder it.internalState.inner (fun _ _ _ => none)
     (fun e _ _ => some e) (fun _ => none)
 
+/-- Whether `it` yields `Decoder.replacement` for ill-formed input rather than ending there. -/
+@[inline]
+public def _root_.Std.Iter.decodeIsLossy (it : Iter (α := DecodeIterator δ ι) σ) : Bool :=
+  it.internalState.lossy
+
 end DecodeIterator
 
 /--
 Decodes the tokens of `it` with `d`, stopping at the first ill-formed input.
 
 A `for` loop or fold over the result ends at ill-formed input just as at the end of the input. To
-tell them apart, check `it.decodeError?` on the iterator where decoding stopped, use
-`Decoder.foldUntilError`, which returns the error and where it is, or decode with
-`Decoder.iterLossy` instead.
+tell them apart, check `it.decodeError?` on the iterator where decoding stopped, find the first
+ill-formed input ahead with `it.decodeFailure?`, or decode with `Decoder.iterLossy` instead.
 -/
 @[inline]
 public def Decoder.iter {δ ι τ σ : Type} [Decoder δ τ σ] (d : δ) (it : Iter (α := ι) τ) :
@@ -288,6 +308,24 @@ public def Decoder.foldLossy {δ ι τ σ γ : Type} [Decoder δ τ σ] [Iterato
   | .done => init
 termination_by it.finitelyManySteps
 decreasing_by all_goals assumption
+
+section Failure
+
+variable {δ ι τ σ : Type} [Decoder δ τ σ] [Iterator ι Id τ] [Iterators.Finite ι Id]
+
+/--
+The first ill-formed input from `it` on, if any: its kind, and the iterator with the same decoder at
+its start. A strict decoding iterator stops there, so this finds where and why a parser or a loop
+over `it` would see the end of the input early.
+-/
+public def _root_.Std.Iter.decodeFailure? (it : Iter (α := DecodeIterator δ ι) σ) :
+    Option (DecodeError.Kind × Iter (α := DecodeIterator δ ι) σ) :=
+  let s := it.internalState
+  match Decoder.foldUntilError s.decoder (fun _ _ => ()) () s.inner with
+  | (_, some (k, base)) => some (k, ⟨⟨s.decoder, s.lossy, base⟩⟩)
+  | (_, none) => none
+
+end Failure
 
 /-! ## Encoders -/
 
