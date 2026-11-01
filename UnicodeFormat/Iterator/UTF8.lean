@@ -8,7 +8,7 @@ public import UnicodeFormat.Iterator.Basic
 
 /-! # UTF-8 iterators
 
-`UTF8.decode` reads characters from UTF-8 bytes, and `UTF8.encode` writes them back. The
+`UTF8.decodeIter` reads characters from UTF-8 bytes, and `UTF8.encodeIter` writes them back. The
 well-formed byte sequences are those of the Unicode Standard, Table 3-7. Ill-formed input is a
 *maximal subpart*: the longest prefix of a well-formed sequence that it starts with, or a single
 byte if none. Lossy decoding replaces each maximal subpart with U+FFFD, following the recommended
@@ -37,7 +37,7 @@ byte out of range, or at the end of the input, the maximal subpart ends at `cur`
 private def continuation {β : Type} (start cur : Iter (α := ι) UInt8) (hcur : Advanced cur start)
     (acc : UInt32) (n : Nat) (lo hi : UInt8)
     (yield : (rest : Iter (α := ι) UInt8) → Advanced rest start → Char → β)
-    (error : DecodeError → (rest : Iter (α := ι) UInt8) → Advanced rest start → β) : β :=
+    (error : DecodeError.Kind → (rest : Iter (α := ι) UInt8) → Advanced rest start → β) : β :=
   match n with
   | 0 => yield cur hcur (Char.ofNat acc.toNat)
   | n + 1 =>
@@ -58,7 +58,7 @@ sequence, or `done` at the end of the input.
 @[inline]
 public def decodeChar {β : Type} (it : Iter (α := ι) UInt8)
     (yield : (rest : Iter (α := ι) UInt8) → Advanced rest it → Char → β)
-    (error : DecodeError → (rest : Iter (α := ι) UInt8) → Advanced rest it → β)
+    (error : DecodeError.Kind → (rest : Iter (α := ι) UInt8) → Advanced rest it → β)
     (done : Unit → β) : β :=
   nextToken it (fun r h b =>
     let c := continuation it r h
@@ -94,18 +94,18 @@ variable {ι : Type}
 
 /-- Decodes the UTF-8 bytes of `it`, stopping at the first ill-formed byte sequence. -/
 @[inline]
-public def decode (it : Iter (α := ι) UInt8) : Iter (α := DecodeIterator UTF8 ι) Char :=
+public def decodeIter (it : Iter (α := ι) UInt8) : Iter (α := DecodeIterator UTF8 ι) Char :=
   Decoder.iter {} it
 
 /-- Decodes the UTF-8 bytes of `it`, replacing each maximal subpart of an ill-formed byte sequence
 with U+FFFD. -/
 @[inline]
-public def decodeLossy (it : Iter (α := ι) UInt8) : Iter (α := DecodeIterator UTF8 ι) Char :=
+public def decodeIterLossy (it : Iter (α := ι) UInt8) : Iter (α := DecodeIterator UTF8 ι) Char :=
   Decoder.iterLossy {} it
 
 /-- Encodes the characters of `it` as UTF-8 bytes. -/
 @[inline]
-public def encode (it : Iter (α := ι) Char) : Iter (α := EncodeIterator UTF8 ι) UInt8 :=
+public def encodeIter (it : Iter (α := ι) Char) : Iter (α := EncodeIterator UTF8 ι) UInt8 :=
   Encoder.iter {} it
 
 variable [Iterator ι Id UInt8] [Iterators.Productive ι Id]

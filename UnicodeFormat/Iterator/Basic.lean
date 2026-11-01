@@ -13,9 +13,9 @@ another: bytes into code units, code units into characters, and back.
 
 A *decoder* `d : δ` with `[Decoder δ τ σ]` reads one token of type `σ` from the tokens of type `τ`
 at an iterator: `Decoder.decode d it` continues with the token and the iterator after it, with a
-`DecodeError` and the iterator after the ill-formed input, or with the end of the input. It looks
-ahead by stepping copies of `it`, so it needs no buffer. `DecodeIterator δ ι` repeats it over an
-iterator of type `ι`. A strict decoding iterator stops at ill-formed input, where
+`DecodeError.Kind` and the iterator after the ill-formed input, or with the end of the input. It
+looks ahead by stepping copies of `it`, so it needs no buffer. `DecodeIterator δ ι` repeats it over
+an iterator of type `ι`. A strict decoding iterator stops at ill-formed input, where
 `it.decodeError?` tells why; a lossy one yields `Decoder.replacement d` instead and goes on after
 the ill-formed input.
 
@@ -81,7 +81,7 @@ public def nextToken [Iterators.Productive ι Id] {β : Sort _} (it : Iter (α :
 end Advanced
 
 /-- Why input is ill-formed. -/
-public inductive DecodeError where
+public inductive DecodeError.Kind where
   /-- A maximal subpart of an ill-formed UTF-8 byte sequence. -/
   | illFormedUTF8
   /-- A UTF-16 surrogate code unit that is not part of a surrogate pair. -/
@@ -90,6 +90,14 @@ public inductive DecodeError where
   | notScalarValue
   /-- An incomplete code unit at the end of the bytes of UTF-16 or UTF-32 code units. -/
   | incompleteCodeUnit
+  deriving Inhabited, DecidableEq, Repr
+
+/-- Ill-formed input: why, and where, as the index of its first token in the input. -/
+public structure DecodeError where
+  /-- Why the input is ill-formed. -/
+  kind : DecodeError.Kind
+  /-- The index of the first token of the ill-formed input. -/
+  pos : Nat
   deriving Inhabited, DecidableEq, Repr
 
 /-- One step of reading a token, as data, so that a loop over it is a self tail call. -/
@@ -110,7 +118,7 @@ public class Decoder (δ : Type) (τ σ : outParam Type) where
   -/
   decode {ι : Type} [Iterator ι Id τ] [Iterators.Productive ι Id] {β : Type} (d : δ)
     (it : Iter (α := ι) τ) (yield : (rest : Iter (α := ι) τ) → Advanced rest it → σ → β)
-    (error : DecodeError → (rest : Iter (α := ι) τ) → Advanced rest it → β)
+    (error : DecodeError.Kind → (rest : Iter (α := ι) τ) → Advanced rest it → β)
     (done : Unit → β) : β
 
 /-- Iterator over the tokens decoded by `decoder` from an iterator of type `ι`. -/
@@ -214,7 +222,7 @@ The error in the input at `it`, if the input there is ill-formed. When a strict 
 stops, this is why: `none` means that it reached the end of the input.
 -/
 public def _root_.Std.Iter.decodeError? (it : Iter (α := DecodeIterator δ ι) σ) :
-    Option DecodeError :=
+    Option DecodeError.Kind :=
   Decoder.decode it.internalState.decoder it.internalState.inner (fun _ _ _ => none)
     (fun e _ _ => some e) (fun _ => none)
 
@@ -232,6 +240,43 @@ public def Decoder.iter {δ ι τ σ : Type} [Decoder δ τ σ] (d : δ) (it : I
 public def Decoder.iterLossy {δ ι τ σ : Type} [Decoder δ τ σ] (d : δ) (it : Iter (α := ι) τ) :
     Iter (α := DecodeIterator δ ι) σ :=
   ⟨⟨d, true, it⟩⟩
+
+/-- One decoding step with the proof that it advances, for loops by well-founded recursion. -/
+private inductive DecodeStep {ι τ : Type} [Iterator ι Id τ] (it : Iter (α := ι) τ) (σ : Type) where
+  | yield (rest : Iter (α := ι) τ) (h : Advanced rest it) (x : σ)
+  | error (kind : DecodeError.Kind) (rest : Iter (α := ι) τ) (h : Advanced rest it)
+  | done
+
+/--
+Decodes the tokens of `it` with `d` and folds them with `f` from `init`, up to the first ill-formed
+input. Returns the result, and the kind of error and the iterator at the ill-formed input, if any.
+-/
+@[specialize]
+public def Decoder.foldUntilError {δ ι τ σ γ : Type} [Decoder δ τ σ] [Iterator ι Id τ]
+    [Iterators.Finite ι Id] (d : δ) (f : γ → σ → γ) (init : γ) (it : Iter (α := ι) τ) :
+    γ × Option (DecodeError.Kind × Iter (α := ι) τ) :=
+  match (Decoder.decode d it (fun rest h x => .yield rest h x) (fun k rest h => .error k rest h)
+      (fun _ => .done) : DecodeStep it σ) with
+  | .yield rest _ x => foldUntilError d f (f init x) rest
+  | .error k _ _ => (init, some (k, it))
+  | .done => (init, none)
+termination_by it.finitelyManySteps
+decreasing_by assumption
+
+/--
+Decodes the tokens of `it` with `d` and folds them with `f` from `init`, with
+`Decoder.replacement d` for each ill-formed input.
+-/
+@[specialize]
+public def Decoder.foldLossy {δ ι τ σ γ : Type} [Decoder δ τ σ] [Iterator ι Id τ]
+    [Iterators.Finite ι Id] (d : δ) (f : γ → σ → γ) (init : γ) (it : Iter (α := ι) τ) : γ :=
+  match (Decoder.decode d it (fun rest h x => .yield rest h x) (fun k rest h => .error k rest h)
+      (fun _ => .done) : DecodeStep it σ) with
+  | .yield rest _ x => foldLossy d f (f init x) rest
+  | .error _ rest _ => foldLossy d f (f init (Decoder.replacement d)) rest
+  | .done => init
+termination_by it.finitelyManySteps
+decreasing_by all_goals assumption
 
 /-! ## Encoders -/
 

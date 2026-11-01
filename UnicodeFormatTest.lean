@@ -22,28 +22,28 @@ def samples : List String :=
 
 /-! UTF-16 encoding -/
 
-#guard (toUTF16 "").size == 0
-#guard (toUTF16 "abc").toList == [0x61, 0x62, 0x63]
-#guard (toUTF16 "é∀").toList == [0xE9, 0x2200]
-#guard (toUTF16 "😀").toList == [0xD83D, 0xDE00]
-#guard (toUTF16 "𐀀").toList == [0xD800, 0xDC00]
-#guard (toUTF16 (Char.ofNat 0x10FFFF).toString).toList == [0xDBFF, 0xDFFF]
-#guard (toUTF16 "\uFFFF").toList == [0xFFFF]
-#guard (toUTF16 (sampleChars 1)).size == 0x10000 - 0x800 + 2 * 0x100000
+#guard (UTF16.encode "").size == 0
+#guard (UTF16.encode "abc").toList == [0x61, 0x62, 0x63]
+#guard (UTF16.encode "é∀").toList == [0xE9, 0x2200]
+#guard (UTF16.encode "😀").toList == [0xD83D, 0xDE00]
+#guard (UTF16.encode "𐀀").toList == [0xD800, 0xDC00]
+#guard (UTF16.encode (Char.ofNat 0x10FFFF).toString).toList == [0xDBFF, 0xDFFF]
+#guard (UTF16.encode "\uFFFF").toList == [0xFFFF]
+#guard (UTF16.encode (sampleChars 1)).size == 0x10000 - 0x800 + 2 * 0x100000
 
 /-! UTF-16 round trips -/
 
-#guard samples.all fun s => fromUTF16? (toUTF16 s) == some s
-#guard samples.all fun s => fromUTF16! (toUTF16 s) == s
-#guard samples.all fun s => fromUTF16Lossy (toUTF16 s) == s
-#guard samples.all fun s => validateUTF16 (toUTF16 s)
+#guard samples.all fun s => UTF16.decode? (UTF16.encode s) == some s
+#guard samples.all fun s => UTF16.decode! (UTF16.encode s) == s
+#guard samples.all fun s => UTF16.decodeLossy (UTF16.encode s) == s
+#guard samples.all fun s => UTF16.validate (UTF16.encode s)
 
 /-! UTF-16 slices -/
 
-#guard fromUTF16? (toUTF16 "a😀b")[1...3] == some "😀"
-#guard fromUTF16? (toUTF16 "a😀b")[1...*] == some "😀b"
-#guard fromUTF16? (toUTF16 "a😀b")[*...2] == none
-#guard fromUTF16Lossy (toUTF16 "a😀b")[2...*] == "\uFFFDb"
+#guard UTF16.decode? (UTF16.encode "a😀b")[1...3] == some "😀"
+#guard UTF16.decode? (UTF16.encode "a😀b")[1...*] == some "😀b"
+#guard UTF16.decode? (UTF16.encode "a😀b")[*...2] == none
+#guard UTF16.decodeLossy (UTF16.encode "a😀b")[2...*] == "\uFFFDb"
 
 /-! Ill-formed UTF-16 -/
 
@@ -58,22 +58,22 @@ def badUTF16 : List (List UInt16 × String) :=
    ([0xD83D, 0xDE00, 0xDE00], "😀\uFFFD"),
    ([0xDBFF, 0xDBFF], "\uFFFD\uFFFD")]
 
-#guard badUTF16.all fun (a, _) => fromUTF16? a.toUInt16Array == none
-#guard badUTF16.all fun (a, _) => !validateUTF16 a.toUInt16Array
-#guard badUTF16.all fun (a, s) => fromUTF16Lossy a.toUInt16Array == s
-#guard validateUTF16 [0xD83D, 0xDE00, 0x61].toUInt16Array
+#guard badUTF16.all fun (a, _) => UTF16.decode? a.toUInt16Array == none
+#guard badUTF16.all fun (a, _) => !UTF16.validate a.toUInt16Array
+#guard badUTF16.all fun (a, s) => UTF16.decodeLossy a.toUInt16Array == s
+#guard UTF16.validate [0xD83D, 0xDE00, 0x61].toUInt16Array
 
 /-! UTF-32 -/
 
-#guard (toUTF32 "").size == 0
-#guard (toUTF32 "a😀").toList == [0x61, 0x1F600]
-#guard (toUTF32 (sampleChars 1)).size == 0x110000 - 0x800
-#guard samples.all fun s => fromUTF32? (toUTF32 s) == some s
-#guard samples.all fun s => fromUTF32! (toUTF32 s) == s
-#guard samples.all fun s => fromUTF32Lossy (toUTF32 s) == s
-#guard samples.all fun s => validateUTF32 (toUTF32 s)
-#guard samples.all fun s => (toUTF32 s).size == s.length
-#guard fromUTF32? (toUTF32 "a😀b")[1...*] == some "😀b"
+#guard (UTF32.encode "").size == 0
+#guard (UTF32.encode "a😀").toList == [0x61, 0x1F600]
+#guard (UTF32.encode (sampleChars 1)).size == 0x110000 - 0x800
+#guard samples.all fun s => UTF32.decode? (UTF32.encode s) == some s
+#guard samples.all fun s => UTF32.decode! (UTF32.encode s) == s
+#guard samples.all fun s => UTF32.decodeLossy (UTF32.encode s) == s
+#guard samples.all fun s => UTF32.validate (UTF32.encode s)
+#guard samples.all fun s => (UTF32.encode s).size == s.length
+#guard UTF32.decode? (UTF32.encode "a😀b")[1...*] == some "😀b"
 
 /-- Code unit sequences with values that are not scalar values, and their lossy decodings. -/
 def badUTF32 : List (List UInt32 × String) :=
@@ -82,13 +82,13 @@ def badUTF32 : List (List UInt32 × String) :=
    ([0x110000], "\uFFFD"),
    ([0x61, 0xFFFFFFFF, 0x62], "a\uFFFDb")]
 
-#guard badUTF32.all fun (a, _) => fromUTF32? a.toUInt32Array == none
-#guard badUTF32.all fun (a, _) => !validateUTF32 a.toUInt32Array
-#guard badUTF32.all fun (a, s) => fromUTF32Lossy a.toUInt32Array == s
+#guard badUTF32.all fun (a, _) => UTF32.decode? a.toUInt32Array == none
+#guard badUTF32.all fun (a, _) => !UTF32.validate a.toUInt32Array
+#guard badUTF32.all fun (a, s) => UTF32.decodeLossy a.toUInt32Array == s
 
 /-! UTF-16 and UTF-32 agree -/
 
-#guard samples.all fun s => fromUTF32? (toUTF32 (fromUTF16! (toUTF16 s))) == some s
+#guard samples.all fun s => UTF32.decode? (UTF32.encode (UTF16.decode! (UTF16.encode s))) == some s
 
 /-! Encoding schemes -/
 
@@ -145,19 +145,19 @@ def schemes : List EncodingScheme :=
 
 /-- Ill-formed bytes in a scheme, and their lossy decodings. -/
 def badBytes : List (EncodingScheme × List UInt8 × String) :=
-  [(utf8, [0x61, 0xFF], "a�"),
-   (utf8BOM, [0xEF, 0xBB, 0xBF, 0xFF], "�"),
-   (utf16BE, [0x00], "�"),
-   (utf16BE, [0x00, 0x61, 0x00], "a�"),
-   (utf16BE, [0xD8, 0x3D, 0x00, 0x61], "�a"),
-   (utf16LE, [0x3D, 0xD8], "�"),
-   (.utf16, [0xFE, 0xFF, 0xDE, 0x00], "�"),
-   (.utf16, [0xFF, 0xFE, 0x61], "�"),
-   (utf32BE, [0x00, 0x00, 0x00], "�"),
-   (utf32BE, [0x00, 0x00, 0x00, 0x61, 0x00], "a�"),
-   (utf32BE, [0x00, 0x00, 0xD8, 0x00], "�"),
-   (utf32LE, [0x00, 0x00, 0x11, 0x00], "�"),
-   (.utf32 .little, [0xFF, 0xFE, 0x00, 0x00, 0x00, 0xD8, 0x00, 0x00], "�")]
+  [(utf8, [0x61, 0xFF], "a\uFFFD"),
+   (utf8BOM, [0xEF, 0xBB, 0xBF, 0xFF], "\uFFFD"),
+   (utf16BE, [0x00], "\uFFFD"),
+   (utf16BE, [0x00, 0x61, 0x00], "a\uFFFD"),
+   (utf16BE, [0xD8, 0x3D, 0x00, 0x61], "\uFFFDa"),
+   (utf16LE, [0x3D, 0xD8], "\uFFFD"),
+   (.utf16, [0xFE, 0xFF, 0xDE, 0x00], "\uFFFD"),
+   (.utf16, [0xFF, 0xFE, 0x61], "\uFFFD"),
+   (utf32BE, [0x00, 0x00, 0x00], "\uFFFD"),
+   (utf32BE, [0x00, 0x00, 0x00, 0x61, 0x00], "a\uFFFD"),
+   (utf32BE, [0x00, 0x00, 0xD8, 0x00], "\uFFFD"),
+   (utf32LE, [0x00, 0x00, 0x11, 0x00], "\uFFFD"),
+   (.utf32 .little, [0xFF, 0xFE, 0x00, 0x00, 0x00, 0xD8, 0x00, 0x00], "\uFFFD")]
 
 #guard badBytes.all fun (e, b, _) => e.decode? b.toByteArray == none
 #guard badBytes.all fun (e, b, _) => !e.validate b.toByteArray
@@ -190,7 +190,7 @@ partial def run {α β : Type} [Iterator α Id β] (it : Iter (α := α) β) (ac
 
 /-- The error where a strict decoding iterator stops, if any. -/
 def stopError? {δ ι τ σ : Type} [Decoder δ τ σ] [Iterator ι Id τ] [Iterators.Productive ι Id]
-    (it : Iter (α := DecodeIterator δ ι) σ) : Option DecodeError :=
+    (it : Iter (α := DecodeIterator δ ι) σ) : Option DecodeError.Kind :=
   (run it).2.decodeError?
 
 /-- The index in the underlying array of a scalar array slice iterator. -/
@@ -199,104 +199,105 @@ def idx8 (it : Iter (α := UInt8Array.SliceIterator) UInt8) : Nat := it.internal
 
 /-! UTF-16 iterators -/
 
-#guard samples.all fun s => (UTF16.encode s.chars).toList == (toUTF16 s).toList
-#guard samples.all fun s => str (UTF16.decode (toUTF16 s).iter) == s
-#guard samples.all fun s => str (UTF16.decodeLossy (toUTF16 s).iter) == s
-#guard badUTF16.all fun (a, s) => str (UTF16.decodeLossy a.toUInt16Array.iter) == s
-#guard badUTF16.all fun (a, _) => stopError? (UTF16.decode a.toUInt16Array.iter) ==
-  some DecodeError.unpairedSurrogate
-#guard samples.all fun s => stopError? (UTF16.decode (toUTF16 s).iter) == none
+#guard samples.all fun s => (UTF16.encodeIter s.chars).toList == (UTF16.encode s).toList
+#guard samples.all fun s => str (UTF16.decodeIter (UTF16.encode s).iter) == s
+#guard samples.all fun s => str (UTF16.decodeIterLossy (UTF16.encode s).iter) == s
+#guard badUTF16.all fun (a, s) => str (UTF16.decodeIterLossy a.toUInt16Array.iter) == s
+#guard badUTF16.all fun (a, _) => stopError? (UTF16.decodeIter a.toUInt16Array.iter) ==
+  some DecodeError.Kind.unpairedSurrogate
+#guard samples.all fun s => stopError? (UTF16.decodeIter (UTF16.encode s).iter) == none
 
 -- A strict decoder stops at the unpaired surrogate, so its base is at the error.
 #guard
-  let (cs, it) := run (UTF16.decode [0x61, 0xD83D, 0xDE00, 0xD83D, 0x62].toUInt16Array.iter)
+  let (cs, it) := run (UTF16.decodeIter [0x61, 0xD83D, 0xDE00, 0xD83D, 0x62].toUInt16Array.iter)
   String.ofList cs.toList == "a😀" && idx16 it.decodeBase == 3 &&
-    it.decodeError? == some DecodeError.unpairedSurrogate
+    it.decodeError? == some DecodeError.Kind.unpairedSurrogate
 
 /-! UTF-32 iterators -/
 
-#guard samples.all fun s => (UTF32.encode s.chars).toList == (toUTF32 s).toList
-#guard samples.all fun s => str (UTF32.decode (toUTF32 s).iter) == s
-#guard badUTF32.all fun (a, s) => str (UTF32.decodeLossy a.toUInt32Array.iter) == s
-#guard badUTF32.all fun (a, _) => stopError? (UTF32.decode a.toUInt32Array.iter) ==
-  some DecodeError.notScalarValue
+#guard samples.all fun s => (UTF32.encodeIter s.chars).toList == (UTF32.encode s).toList
+#guard samples.all fun s => str (UTF32.decodeIter (UTF32.encode s).iter) == s
+#guard badUTF32.all fun (a, s) => str (UTF32.decodeIterLossy a.toUInt32Array.iter) == s
+#guard badUTF32.all fun (a, _) => stopError? (UTF32.decodeIter a.toUInt32Array.iter) ==
+  some DecodeError.Kind.notScalarValue
 
 /-! UTF-8 iterators -/
 
-#guard samples.all fun s => (UTF8.encode s.chars).toList == s.toUTF8.toList
-#guard samples.all fun s => str (UTF8.decode s.toUTF8.toUInt8Array.iter) == s
-#guard samples.all fun s => stopError? (UTF8.decode s.toUTF8.toUInt8Array.iter) == none
+#guard samples.all fun s => (UTF8.encodeIter s.chars).toList == s.toUTF8.toList
+#guard samples.all fun s => str (UTF8.decodeIter s.toUTF8.toUInt8Array.iter) == s
+#guard samples.all fun s => stopError? (UTF8.decodeIter s.toUTF8.toUInt8Array.iter) == none
 
 /-- Ill-formed UTF-8, and its decoding with U+FFFD for each maximal subpart. -/
 def badUTF8 : List (List UInt8 × String) :=
   -- The example of the Unicode Standard, Table 3-8.
   [([0x61, 0xF1, 0x80, 0x80, 0xE1, 0x80, 0xC2, 0x62, 0x80, 0x63, 0x80, 0xBF, 0x64],
-     "a���b�c��d"),
-   ([0x80], "�"),
-   ([0xC0, 0xAF], "��"),
-   ([0xC2], "�"),
-   ([0xE0, 0x80, 0x80], "���"),
-   ([0xE2, 0x88], "�"),
-   ([0xE2, 0x88, 0x61], "�a"),
-   ([0xED, 0xA0, 0x80], "���"),
-   ([0xF0, 0x80, 0x80, 0x80], "����"),
-   ([0xF4, 0x90, 0x80, 0x80], "����"),
-   ([0xF5], "�"),
-   ([0xFF, 0xFE], "��")]
+     "a\uFFFD\uFFFD\uFFFDb\uFFFDc\uFFFD\uFFFDd"),
+   ([0x80], "\uFFFD"),
+   ([0xC0, 0xAF], "\uFFFD\uFFFD"),
+   ([0xC2], "\uFFFD"),
+   ([0xE0, 0x80, 0x80], "\uFFFD\uFFFD\uFFFD"),
+   ([0xE2, 0x88], "\uFFFD"),
+   ([0xE2, 0x88, 0x61], "\uFFFDa"),
+   ([0xED, 0xA0, 0x80], "\uFFFD\uFFFD\uFFFD"),
+   ([0xF0, 0x80, 0x80, 0x80], "\uFFFD\uFFFD\uFFFD\uFFFD"),
+   ([0xF4, 0x90, 0x80, 0x80], "\uFFFD\uFFFD\uFFFD\uFFFD"),
+   ([0xF5], "\uFFFD"),
+   ([0xFF, 0xFE], "\uFFFD\uFFFD")]
 
-#guard badUTF8.all fun (b, s) => str (UTF8.decodeLossy b.toUInt8Array.iter) == s
-#guard badUTF8.all fun (b, _) => stopError? (UTF8.decode b.toUInt8Array.iter) ==
-  some DecodeError.illFormedUTF8
+#guard badUTF8.all fun (b, s) => str (UTF8.decodeIterLossy b.toUInt8Array.iter) == s
+#guard badUTF8.all fun (b, _) => stopError? (UTF8.decodeIter b.toUInt8Array.iter) ==
+  some DecodeError.Kind.illFormedUTF8
 #guard badUTF8.all fun (b, _) => String.fromUTF8? b.toByteArray == none
 
 -- The maximal subpart E2 88 ends before 61.
 #guard
-  let (cs, it) := run (UTF8.decode [0x61, 0xE2, 0x88, 0x61].toUInt8Array.iter)
+  let (cs, it) := run (UTF8.decodeIter [0x61, 0xE2, 0x88, 0x61].toUInt8Array.iter)
   cs == #['a'] && idx8 it.decodeBase == 1
 
 /-! Byte order iterators -/
 
 #guard samples.all fun s =>
-  (ByteOrder.encode16 .big (UTF16.encode s.chars)).toList == (utf16BE.encode s).toList
+  (ByteOrder.encodeIter16 .big (UTF16.encodeIter s.chars)).toList == (utf16BE.encode s).toList
 #guard samples.all fun s =>
-  (ByteOrder.encode16 .little (UTF16.encode s.chars)).toList == (utf16LE.encode s).toList
+  (ByteOrder.encodeIter16 .little (UTF16.encodeIter s.chars)).toList == (utf16LE.encode s).toList
 #guard samples.all fun s =>
-  (ByteOrder.encode32 .big (UTF32.encode s.chars)).toList == (utf32BE.encode s).toList
+  (ByteOrder.encodeIter32 .big (UTF32.encodeIter s.chars)).toList == (utf32BE.encode s).toList
 #guard samples.all fun s =>
-  (ByteOrder.encode32 .little (UTF32.encode s.chars)).toList == (utf32LE.encode s).toList
+  (ByteOrder.encodeIter32 .little (UTF32.encodeIter s.chars)).toList == (utf32LE.encode s).toList
 #guard samples.all fun s =>
-  str (UTF16.decode (ByteOrder.decode16 .little (utf16LE.encode s).toUInt8Array.iter)) == s
+  str (UTF16.decodeIter (ByteOrder.decodeIter16 .little (utf16LE.encode s).toUInt8Array.iter)) == s
 #guard samples.all fun s =>
-  str (UTF32.decode (ByteOrder.decode32 .big (utf32BE.encode s).toUInt8Array.iter)) == s
+  str (UTF32.decodeIter (ByteOrder.decodeIter32 .big (utf32BE.encode s).toUInt8Array.iter)) == s
 
-#guard (run (ByteOrder.decode16 .big [0x00, 0x61, 0x00].toUInt8Array.iter)).1 == #[0x61]
-#guard stopError? (ByteOrder.decode16 .big [0x00, 0x61, 0x00].toUInt8Array.iter) ==
-  some DecodeError.incompleteCodeUnit
-#guard (ByteOrder.decode16Lossy .big [0x00, 0x61, 0x00].toUInt8Array.iter).toList ==
+#guard (run (ByteOrder.decodeIter16 .big [0x00, 0x61, 0x00].toUInt8Array.iter)).1 == #[0x61]
+#guard stopError? (ByteOrder.decodeIter16 .big [0x00, 0x61, 0x00].toUInt8Array.iter) ==
+  some DecodeError.Kind.incompleteCodeUnit
+#guard (ByteOrder.decodeIter16Lossy .big [0x00, 0x61, 0x00].toUInt8Array.iter).toList ==
   [0x61, 0xFFFD]
-#guard (ByteOrder.decode32Lossy .little [0x61, 0, 0, 0, 0x62, 0].toUInt8Array.iter).toList ==
+#guard (ByteOrder.decodeIter32Lossy .little [0x61, 0, 0, 0, 0x62, 0].toUInt8Array.iter).toList ==
   [0x61, 0xFFFD]
-#guard str (UTF16.decodeLossy (ByteOrder.decode16Lossy .big [0xD8, 0x3D, 0x00].toUInt8Array.iter))
-  == "��"
+#guard
+  let it := ByteOrder.decodeIter16Lossy .big [0xD8, 0x3D, 0x00].toUInt8Array.iter
+  str (UTF16.decodeIterLossy it) == "\uFFFD\uFFFD"
 
 /-! Byte order marks -/
 
 #guard
   let (o, it) := ByteOrder.readBOM16 .big [0xFF, 0xFE, 0x61, 0x00].toUInt8Array.iter
-  o == .little && str (UTF16.decode (o.decode16 it)) == "a"
+  o == .little && str (UTF16.decodeIter (o.decodeIter16 it)) == "a"
 #guard
   let (o, it) := ByteOrder.readBOM16 .little [0x00, 0x61].toUInt8Array.iter
   o == .little && idx8 it == 0
 #guard
   let (o, it) := ByteOrder.readBOM32 .big [0xFF, 0xFE, 0, 0, 0x61, 0, 0, 0].toUInt8Array.iter
-  o == .little && str (UTF32.decode (o.decode32 it)) == "a"
+  o == .little && str (UTF32.decodeIter (o.decodeIter32 it)) == "a"
 #guard idx8 (UTF8.skipSignature [0xEF, 0xBB, 0xBF, 0x61].toUInt8Array.iter) == 3
 #guard idx8 (UTF8.skipSignature [0xEF, 0xBB].toUInt8Array.iter) == 0
 
 /-! Encoder boundaries -/
 
 #guard
-  let it := UTF16.encode "😀a".chars
+  let it := UTF16.encodeIter "😀a".chars
   match it.step with
   | ⟨.yield it' u, _⟩ => u == 0xD83D && !it'.encodeBoundary && it'.encodeBase.toList == ['a']
   | _ => false
@@ -310,8 +311,8 @@ def badUTF8 : List (List UInt8 × String) :=
 -- Unlike core, which replaces the run `ED A0 80` with a single U+FFFD. When the second test fails,
 -- core follows maximal subparts (https://github.com/leanprover/lean4/issues/16145), and
 -- `fromUTF8Lossy` in `EncodingScheme` can use it directly.
-#guard utf8.decodeLossy [0xED, 0xA0, 0x80].toByteArray == "���"
-#guard String.fromUTF8Lossy [0xED, 0xA0, 0x80].toByteArray == "�"
+#guard utf8.decodeLossy [0xED, 0xA0, 0x80].toByteArray == "\uFFFD\uFFFD\uFFFD"
+#guard String.fromUTF8Lossy [0xED, 0xA0, 0x80].toByteArray == "\uFFFD"
 
 /-! Detection -/
 
@@ -344,3 +345,54 @@ def badUTF8 : List (List UInt8 × String) :=
 #guard ofName? "csUTF32BE" == some utf32BE
 #guard ofName? "UTF8" == none
 #guard ofName? "latin1" == none
+
+/-! Error positions -/
+
+/-- The error of a decoding, if any. -/
+def err? {α : Type} : Except DecodeError α → Option DecodeError
+  | .ok _ => none
+  | .error e => some e
+
+#guard err? (UTF16.decode [0x61, 0xD83D, 0x62].toUInt16Array) ==
+  some ⟨.unpairedSurrogate, 1⟩
+#guard err? (UTF16.decode [0x61, 0xD83D, 0xDE00, 0xDE00].toUInt16Array) ==
+  some ⟨.unpairedSurrogate, 3⟩
+-- Positions are indices in the slice.
+#guard err? (UTF16.decode ([0x61, 0x62, 0xDC00].toUInt16Array[1...*])) ==
+  some ⟨.unpairedSurrogate, 1⟩
+#guard err? (UTF32.decode [0x61, 0x62, 0x110000].toUInt32Array) == some ⟨.notScalarValue, 2⟩
+#guard samples.all fun s => err? (UTF16.decode (UTF16.encode s)) == none
+#guard samples.all fun s => err? (UTF32.decode (UTF32.encode s)) == none
+
+/-! UTF-8 -/
+
+#guard samples.all fun s => UTF8.decode? (UTF8.encode s) == some s
+#guard samples.all fun s => UTF8.validate (UTF8.encode s)
+#guard err? (UTF8.decode [0x61, 0xE2, 0x88, 0x61].toByteArray) == some ⟨.illFormedUTF8, 1⟩
+#guard err? (UTF8.decode [0x61, 0x62, 0xFF].toByteArray) == some ⟨.illFormedUTF8, 2⟩
+#guard badUTF8.all fun (b, s) => UTF8.decodeLossy b.toByteArray == s
+#guard badUTF8.all fun (b, _) => !UTF8.validate b.toByteArray
+
+/-! Encoding scheme error positions, in bytes -/
+
+#guard err? (utf8BOM.decode [0xEF, 0xBB, 0xBF, 0x61, 0xFF].toByteArray) ==
+  some ⟨.illFormedUTF8, 4⟩
+#guard err? (utf16BE.decode [0x00, 0x61, 0xD8, 0x3D].toByteArray) ==
+  some ⟨.unpairedSurrogate, 2⟩
+#guard err? (utf16BE.decode [0x00, 0x61, 0x00].toByteArray) == some ⟨.incompleteCodeUnit, 2⟩
+-- An unpaired surrogate before an incomplete code unit is the first error.
+#guard err? (utf16LE.decode [0x3D, 0xD8, 0x61].toByteArray) == some ⟨.unpairedSurrogate, 0⟩
+#guard err? (EncodingScheme.utf16.decode [0xFE, 0xFF, 0x00, 0x61, 0xD8, 0x3D].toByteArray) ==
+  some ⟨.unpairedSurrogate, 4⟩
+#guard err? ((utf32 .little).decode [0xFF, 0xFE, 0, 0, 0, 0xD8, 0, 0].toByteArray) ==
+  some ⟨.notScalarValue, 4⟩
+#guard err? (utf32BE.decode [0, 0, 0, 0x61, 0, 0].toByteArray) == some ⟨.incompleteCodeUnit, 4⟩
+#guard schemes.all fun e => samples.all fun s => err? (e.decode (e.encode s)) == none
+#guard badBytes.all fun (e, b, _) => (err? (e.decode b.toByteArray)).isSome
+
+/-! Transcoding with errors -/
+
+#guard (utf8.transcode utf16BE (UTF8.encode "a😀")).toOption.map ByteArray.toList ==
+  some (utf16BE.encode "a😀").toList
+#guard err? (utf16LE.transcode utf8 [0x61, 0x00, 0x3D, 0xD8].toByteArray) ==
+  some ⟨.unpairedSurrogate, 2⟩

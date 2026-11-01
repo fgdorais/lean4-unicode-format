@@ -8,8 +8,8 @@ public import UnicodeFormat.Iterator.Basic
 
 /-! # UTF-16 iterators
 
-`UTF16.decode` reads characters from UTF-16 code units, and `UTF16.encode` writes them back. An
-unpaired surrogate is ill-formed: a high surrogate reads its low surrogate by looking ahead, and
+`UTF16.decodeIter` reads characters from UTF-16 code units, and `UTF16.encodeIter` writes them back.
+An unpaired surrogate is ill-formed: a high surrogate reads its low surrogate by looking ahead, and
 when there is none, only the high surrogate is ill-formed and decoding goes on from the next code
 unit.
 -/
@@ -39,7 +39,7 @@ the input.
 @[inline]
 public def decodeChar {β : Type} (it : Iter (α := ι) UInt16)
     (yield : (rest : Iter (α := ι) UInt16) → Advanced rest it → Char → β)
-    (error : DecodeError → (rest : Iter (α := ι) UInt16) → Advanced rest it → β)
+    (error : DecodeError.Kind → (rest : Iter (α := ι) UInt16) → Advanced rest it → β)
     (done : Unit → β) : β :=
   nextToken it (fun r₁ h₁ u =>
     if isHigh u then
@@ -70,17 +70,17 @@ public instance : Encoder UTF16 Char UInt16 where
 
 /-- Decodes the UTF-16 code units of `it`, stopping at the first unpaired surrogate. -/
 @[inline]
-public def decode (it : Iter (α := ι) UInt16) : Iter (α := DecodeIterator UTF16 ι) Char :=
+public def decodeIter (it : Iter (α := ι) UInt16) : Iter (α := DecodeIterator UTF16 ι) Char :=
   Decoder.iter {} it
 
 /-- Decodes the UTF-16 code units of `it`, replacing each unpaired surrogate with U+FFFD. -/
 @[inline]
-public def decodeLossy (it : Iter (α := ι) UInt16) : Iter (α := DecodeIterator UTF16 ι) Char :=
+public def decodeIterLossy (it : Iter (α := ι) UInt16) : Iter (α := DecodeIterator UTF16 ι) Char :=
   Decoder.iterLossy {} it
 
 /-- Encodes the characters of `it` as UTF-16 code units. -/
 @[inline]
-public def encode (it : Iter (α := ι) Char) : Iter (α := EncodeIterator UTF16 ι) UInt16 :=
+public def encodeIter (it : Iter (α := ι) Char) : Iter (α := EncodeIterator UTF16 ι) UInt16 :=
   Encoder.iter {} it
 
 end UTF16

@@ -5,43 +5,49 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import ScalarArray.UInt32
+public import UnicodeFormat.Iterator.UTF32
 
 /-!
 # UTF-32
 
 Each code point is a single code unit. A code unit that is a surrogate in D800–DFFF or above
 10FFFF is ill-formed.
+
+Decoding goes through `UTF32.decodeIter`; `decode` reports the position of the first ill-formed
+code unit, as an index in the slice.
 -/
 
-open ScalarArray
+open ScalarArray Std
 
-namespace Unicode
+namespace Unicode.UTF32
 
 /-- The UTF-32 encoding of `s`. -/
-public def toUTF32 (s : String) : UInt32Array := (s.chars.map Char.val).toUInt32Array
+public def encode (s : String) : UInt32Array := (s.chars.map Char.val).toUInt32Array
 
-/-- Decodes UTF-32, running `bad` for each ill-formed code unit. -/
-@[specialize] private def decodeUTF32 [Monad m] (s : UInt32Array.Slice) (bad : m Char) :
-    m String := do
-  let mut r := ""
-  for u in s do
-    r := r.push (← if h : u.isValidChar then pure ⟨u, h⟩ else bad)
-  return r
+/-- Decodes the UTF-32 code units of `s`, or returns the first that is not a scalar value and its
+index in `s`. -/
+public def decode (s : UInt32Array.Slice) : Except DecodeError String :=
+  match Decoder.foldUntilError ({} : UTF32) String.push "" s.iter with
+  | (r, none) => .ok r
+  | (_, some (k, it)) => .error ⟨k, it.internalState.xs.start - s.start⟩
 
-/-- Decodes UTF-32, or returns `none` if `s` has a code unit that is not a Unicode scalar value. -/
-public def fromUTF32? (s : UInt32Array.Slice) : Option String := decodeUTF32 s none
+/-- Decodes the UTF-32 code units of `s`, or returns `none` if `s` has a code unit that is not a
+Unicode scalar value. -/
+public def decode? (s : UInt32Array.Slice) : Option String := (decode s).toOption
 
-/-- Decodes UTF-32, panicking if `s` has a code unit that is not a Unicode scalar value. -/
-public def fromUTF32! (s : UInt32Array.Slice) : String :=
-  match fromUTF32? s with
-  | some r => r
-  | none => panic! "invalid UTF-32 string"
+/-- Decodes the UTF-32 code units of `s`, panicking if `s` has a code unit that is not a Unicode
+scalar value. -/
+public def decode! (s : UInt32Array.Slice) : String :=
+  match decode s with
+  | .ok r => r
+  | .error _ => panic! "invalid UTF-32 string"
 
-/-- Decodes UTF-32, replacing each code unit that is not a Unicode scalar value with U+FFFD. -/
-public def fromUTF32Lossy (s : UInt32Array.Slice) : String :=
-  Id.run <| decodeUTF32 s (pure '�')
+/-- Decodes the UTF-32 code units of `s`, replacing each code unit that is not a Unicode scalar
+value with U+FFFD. -/
+public def decodeLossy (s : UInt32Array.Slice) : String :=
+  Decoder.foldLossy ({} : UTF32) String.push "" s.iter
 
 /-- Whether `s` is well-formed UTF-32, that is, every code unit is a Unicode scalar value. -/
-public def validateUTF32 (s : UInt32Array.Slice) : Bool := s.all (·.isValidChar)
+public def validate (s : UInt32Array.Slice) : Bool := s.all (·.isValidChar)
 
-end Unicode
+end Unicode.UTF32

@@ -5,10 +5,10 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import UnicodeFormat.Basic
+public import UnicodeFormat.UTF8
 public import UnicodeFormat.UTF16
 public import UnicodeFormat.UTF32
 import ScalarArray.Bytes
-import UnicodeFormat.Iterator.UTF8
 
 /-!
 # Encoding schemes
@@ -25,6 +25,9 @@ replaces the incomplete code unit at the end with U+FFFD. Lossy UTF-8 decoding r
 subpart of an ill-formed byte sequence with U+FFFD, following the recommended practice of the
 Standard, Section 3.9, like `UTF8.decodeLossy`. Core's `String.fromUTF8Lossy` replaces each run of
 ill-formed bytes instead, so it can give fewer U+FFFD.
+
+`decode` reports the first ill-formed input with its byte offset, counting the byte order mark or
+signature.
 -/
 
 open ScalarArray
@@ -129,58 +132,77 @@ private def dropSignature (b : ByteArray) : ByteArray :=
 /-- The encoding of `s` in the scheme `e`. -/
 public def encode (e : EncodingScheme) (s : String) : ByteArray :=
   match e with
-  | utf8 => s.toUTF8
-  | utf8BOM => ("\uFEFF" ++ s).toUTF8
-  | utf16BE => toBytes16 .big (toUTF16 s)
-  | utf16LE => toBytes16 .little (toUTF16 s)
-  | utf16 o => toBytes16 o (toUTF16 ("\uFEFF" ++ s))
-  | utf32BE => toBytes32 .big (toUTF32 s)
-  | utf32LE => toBytes32 .little (toUTF32 s)
-  | utf32 o => toBytes32 o (toUTF32 ("\uFEFF" ++ s))
+  | utf8 => UTF8.encode s
+  | utf8BOM => UTF8.encode ("\uFEFF" ++ s)
+  | utf16BE => toBytes16 .big (UTF16.encode s)
+  | utf16LE => toBytes16 .little (UTF16.encode s)
+  | utf16 o => toBytes16 o (UTF16.encode ("\uFEFF" ++ s))
+  | utf32BE => toBytes32 .big (UTF32.encode s)
+  | utf32LE => toBytes32 .little (UTF32.encode s)
+  | utf32 o => toBytes32 o (UTF32.encode ("\uFEFF" ++ s))
+
+/-- The byte offset in the input of the start of `s`, the bytes after a mark. -/
+private def offset (s : UInt8Array.Slice) : Nat := s.start
+
+/-- Decodes the code units of `s` in byte order `o`, or returns the first error, at its byte offset
+in the input. -/
+private def decode16 (o : ByteOrder) (s : UInt8Array.Slice) : Except DecodeError String :=
+  match UTF16.decode ((ofBytes16? o (dropPartial s 2)).getD {}) with
+  | .ok r =>
+    if s.size % 2 == 0 then .ok r
+    else .error ⟨.incompleteCodeUnit, offset s + (s.size - s.size % 2)⟩
+  | .error e => .error ⟨e.kind, offset s + 2 * e.pos⟩
+
+/-- Decodes the code units of `s` in byte order `o`, or returns the first error, at its byte offset
+in the input. -/
+private def decode32 (o : ByteOrder) (s : UInt8Array.Slice) : Except DecodeError String :=
+  match UTF32.decode ((ofBytes32? o (dropPartial s 4)).getD {}) with
+  | .ok r =>
+    if s.size % 4 == 0 then .ok r
+    else .error ⟨.incompleteCodeUnit, offset s + (s.size - s.size % 4)⟩
+  | .error e => .error ⟨e.kind, offset s + 4 * e.pos⟩
+
+/-- Decodes `b` in the scheme `e`, or returns the first ill-formed input with its byte offset in
+`b`. -/
+public def decode (e : EncodingScheme) (b : ByteArray) : Except DecodeError String :=
+  match e with
+  | utf8 => UTF8.decode b
+  | utf8BOM =>
+    if startsWith b [0xEF, 0xBB, 0xBF] then
+      (UTF8.decode (b.extract 3 b.size)).mapError fun e => { e with pos := e.pos + 3 }
+    else UTF8.decode b
+  | utf16BE => decode16 .big (bytes b)
+  | utf16LE => decode16 .little (bytes b)
+  | utf16 o => let (o, s) := readBOM16 o b; decode16 o s
+  | utf32BE => decode32 .big (bytes b)
+  | utf32LE => decode32 .little (bytes b)
+  | utf32 o => let (o, s) := readBOM32 o b; decode32 o s
 
 /-- Decodes `b` in the scheme `e`, or returns `none` if `b` is ill-formed. -/
-public def decode? (e : EncodingScheme) (b : ByteArray) : Option String :=
-  match e with
-  | utf8 => String.fromUTF8? b
-  | utf8BOM => String.fromUTF8? (dropSignature b)
-  | utf16BE => ofBytes16? .big (bytes b) >>= (fromUTF16? ·)
-  | utf16LE => ofBytes16? .little (bytes b) >>= (fromUTF16? ·)
-  | utf16 o => let (o, b) := readBOM16 o b; ofBytes16? o b >>= (fromUTF16? ·)
-  | utf32BE => ofBytes32? .big (bytes b) >>= (fromUTF32? ·)
-  | utf32LE => ofBytes32? .little (bytes b) >>= (fromUTF32? ·)
-  | utf32 o => let (o, b) := readBOM32 o b; ofBytes32? o b >>= (fromUTF32? ·)
+public def decode? (e : EncodingScheme) (b : ByteArray) : Option String := (e.decode b).toOption
 
 /-- Decodes `b` in the scheme `e`, panicking if `b` is ill-formed. -/
 public def decode! (e : EncodingScheme) (b : ByteArray) : String :=
-  match e.decode? b with
-  | some s => s
-  | none => panic! "ill-formed encoded string"
+  match e.decode b with
+  | .ok s => s
+  | .error _ => panic! "ill-formed encoded string"
 
 /-- Decodes the code units of `s` in byte order `o` lossily, with U+FFFD for an incomplete code
 unit at the end. -/
 private def decodeLossy16 (o : ByteOrder) (s : UInt8Array.Slice) : String :=
-  fromUTF16Lossy ((ofBytes16? o (dropPartial s 2)).getD {}) ++ partialUnit s 2
+  UTF16.decodeLossy ((ofBytes16? o (dropPartial s 2)).getD {}) ++ partialUnit s 2
 
 /-- Decodes the code units of `s` in byte order `o` lossily, with U+FFFD for an incomplete code
 unit at the end. -/
 private def decodeLossy32 (o : ByteOrder) (s : UInt8Array.Slice) : String :=
-  fromUTF32Lossy ((ofBytes32? o (dropPartial s 4)).getD {}) ++ partialUnit s 4
-
-/-- Decodes the UTF-8 bytes of `b`, replacing each maximal subpart of an ill-formed byte sequence
-with U+FFFD. -/
--- Well-formed input takes core's fast path; only ill-formed input goes through the iterator, until
--- core follows maximal subparts too: https://github.com/leanprover/lean4/issues/16145
-private def fromUTF8Lossy (b : ByteArray) : String :=
-  match String.fromUTF8? b with
-  | some s => s
-  | none => (UTF8.decodeLossy b.toUInt8Array.iter).fold String.push ""
+  UTF32.decodeLossy ((ofBytes32? o (dropPartial s 4)).getD {}) ++ partialUnit s 4
 
 /-- Decodes `b` in the scheme `e`, replacing each ill-formed code unit with U+FFFD, or in UTF-8 each
 maximal subpart of an ill-formed byte sequence. -/
 public def decodeLossy (e : EncodingScheme) (b : ByteArray) : String :=
   match e with
-  | utf8 => fromUTF8Lossy b
-  | utf8BOM => fromUTF8Lossy (dropSignature b)
+  | utf8 => UTF8.decodeLossy b
+  | utf8BOM => UTF8.decodeLossy (dropSignature b)
   | utf16BE => decodeLossy16 .big (bytes b)
   | utf16LE => decodeLossy16 .little (bytes b)
   | utf16 o => let (o, b) := readBOM16 o b; decodeLossy16 o b
@@ -191,19 +213,24 @@ public def decodeLossy (e : EncodingScheme) (b : ByteArray) : String :=
 /-- Whether `b` is well-formed in the scheme `e`. -/
 public def validate (e : EncodingScheme) (b : ByteArray) : Bool :=
   match e with
-  | utf8 => b.validateUTF8
-  | utf8BOM => (dropSignature b).validateUTF8
-  | utf16BE => (ofBytes16? .big (bytes b)).any (validateUTF16 ·)
-  | utf16LE => (ofBytes16? .little (bytes b)).any (validateUTF16 ·)
-  | utf16 o => let (o, b) := readBOM16 o b; (ofBytes16? o b).any (validateUTF16 ·)
-  | utf32BE => (ofBytes32? .big (bytes b)).any (validateUTF32 ·)
-  | utf32LE => (ofBytes32? .little (bytes b)).any (validateUTF32 ·)
-  | utf32 o => let (o, b) := readBOM32 o b; (ofBytes32? o b).any (validateUTF32 ·)
+  | utf8 => UTF8.validate b
+  | utf8BOM => UTF8.validate (dropSignature b)
+  | utf16BE => (ofBytes16? .big (bytes b)).any (UTF16.validate ·)
+  | utf16LE => (ofBytes16? .little (bytes b)).any (UTF16.validate ·)
+  | utf16 o => let (o, b) := readBOM16 o b; (ofBytes16? o b).any (UTF16.validate ·)
+  | utf32BE => (ofBytes32? .big (bytes b)).any (UTF32.validate ·)
+  | utf32LE => (ofBytes32? .little (bytes b)).any (UTF32.validate ·)
+  | utf32 o => let (o, b) := readBOM32 o b; (ofBytes32? o b).any (UTF32.validate ·)
+
+/-- Converts `b` from the scheme `src` to the scheme `dst`, or returns the first ill-formed input
+in `src` with its byte offset in `b`. -/
+public def transcode (src dst : EncodingScheme) (b : ByteArray) : Except DecodeError ByteArray :=
+  (src.decode b).map dst.encode
 
 /-- Converts `b` from the scheme `src` to the scheme `dst`, or returns `none` if `b` is ill-formed
 in `src`. -/
 public def transcode? (src dst : EncodingScheme) (b : ByteArray) : Option ByteArray :=
-  (src.decode? b).map dst.encode
+  (src.transcode dst b).toOption
 
 /-- Converts `b` from the scheme `src` to the scheme `dst`, replacing each ill-formed code unit
 with U+FFFD. -/
