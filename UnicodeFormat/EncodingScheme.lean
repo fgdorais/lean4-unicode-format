@@ -247,6 +247,9 @@ The scheme given by the byte order mark or UTF-8 signature at the start of `b`, 
 `utf8BOM`, `utf16 o` or `utf32 o`, so decoding `b` in that scheme skips the mark. The bytes
 FF FE 00 00 start both UTF-32LE with a byte order mark and UTF-16LE with a byte order mark followed
 by U+0000; they are taken as UTF-32LE, as is usual.
+
+Only the mark counts: without one, the result is `none`, even for bytes that are plainly not UTF-8,
+such as UTF-16 or UTF-32 text without a mark. Callers then choose the scheme, often `utf8`.
 -/
 public def detect? (b : ByteArray) : Option EncodingScheme :=
   if startsWith b [0xEF, 0xBB, 0xBF] then some utf8BOM
