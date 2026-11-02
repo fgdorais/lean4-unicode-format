@@ -102,11 +102,15 @@ public instance : Decoder UTF8 UInt8 Char where
 
 public instance : Encoder UTF8 Char UInt8 where
   length _ c := c.utf8Size
+  -- In `UInt32` arithmetic rather than `Nat`, since it runs for each byte.
   unit _ c i :=
-    let n := c.utf8Size
-    if n = 1 then c.val.toUInt8
-    else if i = 0 then ((0xFF00 >>> n.toUInt32) ||| (c.val >>> (6 * (n - 1)).toUInt32)).toUInt8
-    else (0x80 ||| ((c.val >>> (6 * (n - 1 - i)).toUInt32) &&& 0x3F)).toUInt8
+    let v := c.val
+    if v < 0x80 then v.toUInt8
+    else
+      let i := i.toUInt32
+      let n : UInt32 := if v < 0x800 then 2 else if v < 0x10000 then 3 else 4
+      if i == 0 then ((0xFF00 >>> n) ||| (v >>> (6 * (n - 1)))).toUInt8
+      else (0x80 ||| ((v >>> (6 * (n - 1 - i))) &&& 0x3F)).toUInt8
 
 namespace UTF8
 

@@ -14,6 +14,11 @@ them, and likewise `decodeIter32` and `encodeIter32` for UTF-32. Bytes that end 
 code unit are ill-formed; lossy decoding replaces that code unit with 0xFFFD, which decodes to
 U+FFFD.
 
+To read characters from bytes, `EncodingScheme.decodeIter` is faster than decoding the code units
+of these iterators with `UTF16.decodeIter` or `UTF32.decodeIter`, about 3.5 times for UTF-16. It
+reads code units and characters in one layer. Over two layers, the compiler allocates the inner
+iterator for each character rather than update it in place.
+
 The UTF-16 and UTF-32 schemes start with a byte order mark: `ByteOrder.readBOM16` and `readBOM32`
 read it, and give the byte order it tells and the iterator after it.
 -/
@@ -37,10 +42,10 @@ namespace ByteOrder
 
 /-- The shift that brings byte `i` of a code unit of `n` bytes into the low byte. -/
 @[inline]
-private def shift (o : ByteOrder) (n i : Nat) : Nat :=
+private def shift (o : ByteOrder) (n : UInt32) (i : Nat) : UInt32 :=
   match o with
-  | .big => 8 * (n - 1 - i)
-  | .little => 8 * i
+  | .big => 8 * (n - 1 - i.toUInt32)
+  | .little => 8 * i.toUInt32
 
 /-- Byte `i` of the UTF-16 code unit `u` in byte order `o`. -/
 @[inline]
@@ -50,7 +55,7 @@ public def byte16 (o : ByteOrder) (u : UInt16) (i : Nat) : UInt8 :=
 /-- Byte `i` of the UTF-32 code unit `u` in byte order `o`. -/
 @[inline]
 public def byte32 (o : ByteOrder) (u : UInt32) (i : Nat) : UInt8 :=
-  (u >>> (o.shift 4 i).toUInt32).toUInt8
+  (u >>> o.shift 4 i).toUInt8
 
 section Read
 
