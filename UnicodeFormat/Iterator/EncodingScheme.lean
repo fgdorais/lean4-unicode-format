@@ -107,7 +107,9 @@ public instance : Encoder EncodingScheme Char UInt8 where
     | .utf16BE | .utf16LE | .utf16 _ => if c.val < 0x10000 then 2 else 4
     | .utf32BE | .utf32LE | .utf32 _ => 4
   unit e c i :=
-    let u16 o := o.byte16 (Encoder.unit ({} : UTF16) c (i / 2)) (i % 2)
+    let u16 o :=
+      let j := i.toUInt32
+      o.byte16 (Encoder.unit ({} : UTF16) c (j >>> 1).toNat) (j &&& 1).toNat
     match e with
     | .utf8 | .utf8BOM => Encoder.unit ({} : UTF8) c i
     | .utf16BE => u16 .big
