@@ -1,6 +1,5 @@
 name = "UnicodeFormat"
-version = "0.1.0"
-description = "Unicode encoding forms for Lean 4"
+description = "Unicode encoding forms and encoding schemes for Lean 4"
 keywords = ["unicode"]
 defaultTargets = ["UnicodeFormat", "UnicodeFormatTest"]
 testDriver = "UnicodeFormatTest"
