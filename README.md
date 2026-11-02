@@ -78,7 +78,12 @@ open Unicode
 
 ## Documentation
 
-You can generate documentation locally using `lake build UnicodeFormat:docs` in the `docs` directory.
+The documentation of the latest release is at
+[www.dorais.org/lean4-unicode-format/doc](https://www.dorais.org/lean4-unicode-format/doc/). Each
+release also has its documentation attached on GitHub.
+
+You can also generate the documentation locally with `lake build UnicodeFormat:docs` in the `docs`
+directory.
 
 -----
 
