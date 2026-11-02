@@ -18,7 +18,7 @@ characters and `encodeIter` encodes them back, `EncodingScheme.decodeIter` and `
 same for the bytes of an encoding scheme, including its byte order mark, and a strict decoder stops
 at the first ill-formed input with the error and its position.
 
-## The `lean4-unicode-*` family
+## The Lean4 / Unicode family
 
 This library is one of a small family of Lean 4 Unicode libraries. Each one has a narrow job, so
 you only depend on what you need.
