@@ -461,7 +461,7 @@ public instance : Iterator (EncodeIterator ε ι) Id τ where
             by simp only [PlausibleStep, h, ↓reduceIte]; exact ⟨i', x, h', hx, rfl, rfl⟩⟩)
         else
           pure (.deflate ⟨.skip ⟨⟨e, i', x, 0, 0⟩⟩,
-            by simp only [PlausibleStep]; exact ⟨h, .inr ⟨i', x, h', by omega, rfl⟩⟩⟩)
+            by simp only [PlausibleStep]; exact ⟨h, .inr ⟨i', x, h', by lia, rfl⟩⟩⟩)
       | ⟨.skip i', h'⟩ =>
         pure (.deflate ⟨.skip ⟨⟨e, i', cur, i, n⟩⟩,
           by simp only [PlausibleStep]; exact ⟨h, .inl ⟨i', h', by first | rfl | trivial⟩⟩⟩)
@@ -487,7 +487,7 @@ private theorem successor_cases {it' it : IterM (α := EncodeIterator ε ι) Id 
     split at hp
     · next hi =>
       obtain ⟨h1, _⟩ := hp
-      exact .inl ⟨by rw [h1], by rw [h1]; simp only; omega⟩
+      exact .inl ⟨by rw [h1], by rw [h1]; simp only; lia⟩
     · next hi =>
       obtain ⟨i', x, h1, _, h2, _⟩ := hp
       exact .inr ⟨hi, by rw [h2]; exact .of_yield h1⟩
