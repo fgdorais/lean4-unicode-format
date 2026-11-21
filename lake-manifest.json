@@ -5,7 +5,7 @@
    "type": "git",
    "subDir": null,
    "scope": "",
-   "rev": "31e00c7a82b84d27629ae4ba6ef810986cbd1eb8",
+   "rev": "05633582e9e56226744a4064acce64b8db648501",
    "name": "«lean4-scalar-arrays»",
    "manifestFile": "lake-manifest.json",
    "inputRev": "main",
