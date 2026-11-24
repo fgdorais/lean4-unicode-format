@@ -14,4 +14,4 @@ precompileModules = true
 [[require]]
 name = "lean4-scalar-arrays"
 git = "https://github.com/fgdorais/lean4-scalar-arrays"
-rev = "nightly-testing"
+rev = "main"
