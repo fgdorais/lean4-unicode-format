@@ -182,15 +182,16 @@ def str {α : Type} [Iterator α Id Char] [IteratorLoop α Id Id] (it : Iter (α
   it.fold String.push ""
 
 /-- The tokens of an iterator, and the iterator where it stops. -/
-partial def run {α β : Type} [Iterator α Id β] (it : Iter (α := α) β) (acc : Array β := #[]) :
-    Array β × Iter (α := α) β :=
+def run {α β : Type} [Iterator α Id β] [Iterators.Finite α Id] (it : Iter (α := α) β)
+    (acc : Array β := #[]) : Array β × Iter (α := α) β :=
   match it.step with
   | ⟨.yield it' x, _⟩ => run it' (acc.push x)
   | ⟨.skip it', _⟩ => run it' acc
   | ⟨.done, _⟩ => (acc, it)
+termination_by it.finitelyManySteps
 
 /-- The error where a strict decoding iterator stops, if any. -/
-def stopError? {δ ι τ σ : Type} [Decoder δ τ σ] [Iterator ι Id τ] [Iterators.Productive ι Id]
+def stopError? {δ ι τ σ : Type} [Decoder δ τ σ] [Iterator ι Id τ] [Iterators.Finite ι Id]
     (it : Iter (α := DecodeIterator δ ι) σ) : Option DecodeError.Kind :=
   (run it).2.decodeError?
 
@@ -296,12 +297,17 @@ def badUTF8 : List (List UInt8 × String) :=
 /-! Going on after ill-formed input -/
 
 /-- Strict decoding that goes on after each ill-formed input with U+FFFD. -/
-partial def recover {δ ι τ : Type} [Decoder δ τ Char] [Iterator ι Id τ] [Iterators.Finite ι Id]
+def recover {δ ι τ : Type} [Decoder δ τ Char] [Iterator ι Id τ] [Iterators.Finite ι Id]
     (it : Iter (α := DecodeIterator δ ι) Char) (acc : String := "") : String :=
-  let (acc, stop) := it.decodeFold String.push acc
-  match stop.decodeContinue? with
-  | some (_, ⟨next, _⟩) => recover next (acc.push '\uFFFD')
-  | none => acc
+  match it.step with
+  | ⟨.yield it' c, _⟩ => recover it' (acc.push c)
+  | ⟨.skip it', _⟩ => recover it' acc
+  | ⟨.done, _⟩ =>
+    match it.decodeContinue? with
+    | some (_, ⟨next, _⟩) => recover next (acc.push '\uFFFD')
+    | none => acc
+termination_by it.finitelyManySteps
+decreasing_by all_goals first | decreasing_trivial | assumption
 
 -- It gives what lossy decoding gives.
 #guard badUTF8.all fun (b, s) => recover (UTF8.decodeIter b.toUInt8Array.iter) == s
